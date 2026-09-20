@@ -1,0 +1,27 @@
+[tools]
+"github:xmake-io/xmake" = "latest"
+
+[tasks.build]
+description = "build Dynamips"
+run = "xmake f -m release -y && xmake -y"
+
+[tasks.dev]
+description = "build Dynamips in debug mode"
+run = "xmake f -m debug -y && xmake -y"
+
+[tasks.test]
+description = "run the library linkage tests"
+run = "xmake test -v"
+
+[tasks.run]
+description = "run the Dynamips executable"
+depends = ["build"]
+run = "xmake run dynamips"
+
+[tasks.compiledb]
+description = "generate compile_commands.json"
+run = "xmake project -k compile_commands ."
+
+[tasks.clean]
+description = "remove generated build files"
+run = "xmake clean -a && rm -rf build compile_commands.json"
