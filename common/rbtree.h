@@ -7,7 +7,7 @@
  */
 
 #ifndef __RBTREE_H__
-#define __RBTREE_H__   1
+#define __RBTREE_H__ 1
 
 static const char rcsid_rbtree[] = "$Id$";
 
@@ -15,15 +15,15 @@ static const char rcsid_rbtree[] = "$Id$";
 #include "mempool.h"
 
 /* Comparison function for 2 keys */
-typedef int (*tree_fcompare)(void *key1,void *key2,void *opt);
+typedef int (*tree_fcompare)(void *key1, void *key2, void *opt);
 
 /* User function to call when using rbtree_foreach */
-typedef void (*tree_fforeach)(void *key,void *value,void *opt);
+typedef void (*tree_fforeach)(void *key, void *value, void *opt);
 
 /* Node colors */
 enum {
-   RBTREE_RED = 0,
-   RBTREE_BLACK,
+  RBTREE_RED = 0,
+  RBTREE_BLACK,
 };
 
 /*
@@ -32,17 +32,17 @@ enum {
  */
 typedef struct rbtree_node rbtree_node;
 struct rbtree_node {
-   /* Key and Value */
-   void *key,*value;
+  /* Key and Value */
+  void *key, *value;
 
-   /* Left and right nodes */
-   rbtree_node *left,*right;
+  /* Left and right nodes */
+  rbtree_node *left, *right;
 
-   /* Parent node */
-   rbtree_node *parent;
+  /* Parent node */
+  rbtree_node *parent;
 
-   /* Node color */
-   short color;
+  /* Node color */
+  short color;
 };
 
 /*
@@ -52,28 +52,28 @@ struct rbtree_node {
  */
 typedef struct rbtree_tree rbtree_tree;
 struct rbtree_tree {
-   int node_count;              /* Number of Nodes */
-   mempool_t mp;                  /* Memory pool */
-   rbtree_node nil;             /* Sentinel */
-   rbtree_node *root;           /* Root node */
-   tree_fcompare key_cmp;       /* Key comparison function */
-   void *opt_data;              /* Optional data for comparison */
+  int node_count;        /* Number of Nodes */
+  mempool_t mp;          /* Memory pool */
+  rbtree_node nil;       /* Sentinel */
+  rbtree_node *root;     /* Root node */
+  tree_fcompare key_cmp; /* Key comparison function */
+  void *opt_data;        /* Optional data for comparison */
 };
 
 /* Insert a node in an Red/Black tree */
-int rbtree_insert(rbtree_tree *tree,void *key,void *value);
+int rbtree_insert(rbtree_tree *tree, void *key, void *value);
 
 /* Removes a node out of a tree */
-void *rbtree_remove(rbtree_tree *tree,void *key);
+void *rbtree_remove(rbtree_tree *tree, void *key);
 
-/* 
- * Lookup for a node corresponding to "key". If node does not exist, 
+/*
+ * Lookup for a node corresponding to "key". If node does not exist,
  * function returns null pointer.
  */
-void *rbtree_lookup(rbtree_tree *tree,void *key);
+void *rbtree_lookup(rbtree_tree *tree, void *key);
 
 /* Call the specified function for each node */
-int rbtree_foreach(rbtree_tree *tree,tree_fforeach user_fn,void *opt);
+int rbtree_foreach(rbtree_tree *tree, tree_fforeach user_fn, void *opt);
 
 /* Compute the height of a Red/Black tree */
 int rbtree_height(rbtree_tree *tree);
@@ -88,7 +88,7 @@ void rbtree_purge(rbtree_tree *tree);
 int rbtree_check(rbtree_tree *tree);
 
 /* Create a new Red/Black tree */
-rbtree_tree *rbtree_create(tree_fcompare key_cmp,void *opt_data);
+rbtree_tree *rbtree_create(tree_fcompare key_cmp, void *opt_data);
 
 /* Delete an Red/Black tree */
 void rbtree_delete(rbtree_tree *tree);

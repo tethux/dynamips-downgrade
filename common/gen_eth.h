@@ -8,7 +8,7 @@
  */
 
 #ifndef __GEN_ETH_H__
-#define __GEN_ETH_H__  1
+#define __GEN_ETH_H__ 1
 
 #include <sys/types.h>
 #include <pcap.h>
@@ -20,10 +20,10 @@ pcap_t *gen_eth_init(char *device);
 void gen_eth_close(pcap_t *p);
 
 /* Send an ethernet frame */
-ssize_t gen_eth_send(pcap_t *p,char *buffer,size_t len);
+ssize_t gen_eth_send(pcap_t *p, char *buffer, size_t len);
 
 /* Receive an ethernet frame */
-ssize_t gen_eth_recv(pcap_t *p,char *buffer,size_t len);
+ssize_t gen_eth_recv(pcap_t *p, char *buffer, size_t len);
 
 /* Display Ethernet interfaces of the system */
 int gen_eth_show_dev_list(void);

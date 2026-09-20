@@ -1,5 +1,6 @@
 [tools]
 "github:xmake-io/xmake" = "latest"
+clang-format = "latest"
 
 [tasks.build]
 description = "build Dynamips"
@@ -21,6 +22,10 @@ run = "xmake run dynamips"
 [tasks.compiledb]
 description = "generate compile_commands.json"
 run = "xmake project -k compile_commands ."
+
+[tasks.format]
+description = "format C sources and headers"
+run = "find common stable unstable include examples -type f \\( -name '*.c' -o -name '*.h' \\) -print0 | xargs -0 clang-format -i"
 
 [tasks.clean]
 description = "remove generated build files"

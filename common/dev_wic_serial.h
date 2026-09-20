@@ -16,14 +16,14 @@
 #include "device.h"
 
 enum {
-   WIC_SERIAL_MODEL_1T = 1,
-   WIC_SERIAL_MODEL_2T,
+  WIC_SERIAL_MODEL_1T = 1,
+  WIC_SERIAL_MODEL_2T,
 };
 
 /* Create a WIC serial device */
-struct wic_serial_data *
-dev_wic_serial_init(vm_instance_t *vm,char *name,u_int model,
-                    m_uint64_t paddr,m_uint32_t len);
+struct wic_serial_data *dev_wic_serial_init(vm_instance_t *vm, char *name,
+                                            u_int model, m_uint64_t paddr,
+                                            m_uint32_t len);
 
 /* Remove a WIC serial device */
 void dev_wic_serial_remove(struct wic_serial_data *d);

@@ -15,21 +15,21 @@
 #include "net_io.h"
 
 /* Number of channels (4 interfaces) */
-#define MUESLIX_NR_CHANNELS  4
+#define MUESLIX_NR_CHANNELS 4
 
 /* Initialize a Mueslix chip */
-struct mueslix_data *
-dev_mueslix_init(vm_instance_t *vm,char *name,int chip_mode,
-                 struct pci_bus *pci_bus,int pci_device,int irq);
+struct mueslix_data *dev_mueslix_init(vm_instance_t *vm, char *name,
+                                      int chip_mode, struct pci_bus *pci_bus,
+                                      int pci_device, int irq);
 
 /* Remove a Mueslix device */
 void dev_mueslix_remove(struct mueslix_data *d);
 
 /* Bind a NIO to a Mueslix channel */
-int dev_mueslix_set_nio(struct mueslix_data *d,u_int channel_id,
+int dev_mueslix_set_nio(struct mueslix_data *d, u_int channel_id,
                         netio_desc_t *nio);
 
 /* Unbind a NIO from a Mueslix channel */
-int dev_mueslix_unset_nio(struct mueslix_data *d,u_int channel_id);
+int dev_mueslix_unset_nio(struct mueslix_data *d, u_int channel_id);
 
 #endif

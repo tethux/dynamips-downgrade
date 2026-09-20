@@ -15,46 +15,45 @@
 #include <stdio.h>
 
 /* 4 Kb should be enough for a keyboard buffer */
-#define VTTY_BUFFER_SIZE  4096
+#define VTTY_BUFFER_SIZE 4096
 
 /* Maximum listening socket number */
-#define VTTY_MAX_FD   10
+#define VTTY_MAX_FD 10
 
 /* VTTY connection types */
 enum {
-   VTTY_TYPE_NONE = 0,
-   VTTY_TYPE_TERM,
-   VTTY_TYPE_TCP,
-   VTTY_TYPE_SERIAL,
+  VTTY_TYPE_NONE = 0,
+  VTTY_TYPE_TERM,
+  VTTY_TYPE_TCP,
+  VTTY_TYPE_SERIAL,
 };
 
 /* VTTY connection states (for TCP) */
 enum {
-   VTTY_STATE_TCP_INVALID,    /* connection is not working */
-   VTTY_STATE_TCP_WAITING,    /* waiting for incoming connection */
-   VTTY_STATE_TCP_RUNNING,    /* character reading/writing ok */
+  VTTY_STATE_TCP_INVALID, /* connection is not working */
+  VTTY_STATE_TCP_WAITING, /* waiting for incoming connection */
+  VTTY_STATE_TCP_RUNNING, /* character reading/writing ok */
 };
 
 /* VTTY input states */
 enum {
-   VTTY_INPUT_TEXT,
-   VTTY_INPUT_VT1,
-   VTTY_INPUT_VT2,
-   VTTY_INPUT_REMOTE,
-   VTTY_INPUT_TELNET,
-   VTTY_INPUT_TELNET_IYOU,
-   VTTY_INPUT_TELNET_SB1,
-   VTTY_INPUT_TELNET_SB2,
-   VTTY_INPUT_TELNET_SB_TTYPE,
-   VTTY_INPUT_TELNET_NEXT
+  VTTY_INPUT_TEXT,
+  VTTY_INPUT_VT1,
+  VTTY_INPUT_VT2,
+  VTTY_INPUT_REMOTE,
+  VTTY_INPUT_TELNET,
+  VTTY_INPUT_TELNET_IYOU,
+  VTTY_INPUT_TELNET_SB1,
+  VTTY_INPUT_TELNET_SB2,
+  VTTY_INPUT_TELNET_SB_TTYPE,
+  VTTY_INPUT_TELNET_NEXT
 };
-
 
 /* Commmand line support utility */
 typedef struct vtty_serial_option vtty_serial_option_t;
 struct vtty_serial_option {
-   char *device;
-   int baudrate, databits, parity, stopbits, hwflow;
+  char *device;
+  int baudrate, databits, parity, stopbits, hwflow;
 };
 
 int vtty_parse_serial_option(vtty_serial_option_t *params, char *optarg);
@@ -62,48 +61,48 @@ int vtty_parse_serial_option(vtty_serial_option_t *params, char *optarg);
 /* Virtual TTY structure */
 typedef struct virtual_tty vtty_t;
 struct virtual_tty {
-   vm_instance_t *vm;
-   char *name;
-   int type;
-   int fd_array[VTTY_MAX_FD];
-   int fd_count;
-   int tcp_port;
-   int terminal_support;
-   int input_state;
-   int input_pending;
-   int telnet_cmd, telnet_opt, telnet_qual;
-   int managed_flush;
-   u_char buffer[VTTY_BUFFER_SIZE];
-   u_int read_ptr,write_ptr;
-   pthread_mutex_t lock;
-   vtty_t *next,**pprev;
-   void *priv_data;
-   u_long user_arg;
+  vm_instance_t *vm;
+  char *name;
+  int type;
+  int fd_array[VTTY_MAX_FD];
+  int fd_count;
+  int tcp_port;
+  int terminal_support;
+  int input_state;
+  int input_pending;
+  int telnet_cmd, telnet_opt, telnet_qual;
+  int managed_flush;
+  u_char buffer[VTTY_BUFFER_SIZE];
+  u_int read_ptr, write_ptr;
+  pthread_mutex_t lock;
+  vtty_t *next, **pprev;
+  void *priv_data;
+  u_long user_arg;
 
-   /* FD Pool (for TCP connections) */
-   fd_pool_t fd_pool;
-   
-   /* Read notification */
-   void (*read_notifier)(vtty_t *);
+  /* FD Pool (for TCP connections) */
+  fd_pool_t fd_pool;
 
-   /* Old text for replay */
-   u_char replay_buffer[VTTY_BUFFER_SIZE];
-   u_int replay_ptr;
-   u_char replay_full;
+  /* Read notification */
+  void (*read_notifier)(vtty_t *);
+
+  /* Old text for replay */
+  u_char replay_buffer[VTTY_BUFFER_SIZE];
+  u_int replay_ptr;
+  u_char replay_full;
 };
 
 #define VTTY_LOCK(tty) pthread_mutex_lock(&(tty)->lock);
 #define VTTY_UNLOCK(tty) pthread_mutex_unlock(&(tty)->lock);
 
 /* create a virtual tty */
-vtty_t *vtty_create(vm_instance_t *vm,char *name,int type,int tcp_port,
+vtty_t *vtty_create(vm_instance_t *vm, char *name, int type, int tcp_port,
                     const vtty_serial_option_t *option);
 
 /* delete a virtual tty */
 void vtty_delete(vtty_t *vtty);
 
 /* Store arbritary data in the FIFO buffer */
-int vtty_store_data(vtty_t *vtty,char *data, int len);
+int vtty_store_data(vtty_t *vtty, char *data, int len);
 
 /* read a character from the buffer (-1 if the buffer is empty) */
 int vtty_get_char(vtty_t *vtty);
@@ -112,7 +111,7 @@ int vtty_get_char(vtty_t *vtty);
 void vtty_put_char(vtty_t *vtty, char ch);
 
 /* Put a buffer to vtty */
-void vtty_put_buffer(vtty_t *vtty,char *buf,size_t len);
+void vtty_put_buffer(vtty_t *vtty, char *buf, size_t len);
 
 /* Flush VTTY output */
 void vtty_flush(vtty_t *vtty);

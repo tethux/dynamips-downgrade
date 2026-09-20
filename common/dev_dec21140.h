@@ -15,15 +15,15 @@
 #include "net_io.h"
 
 /* Generic DEC21140 initialization code */
-struct dec21140_data *dev_dec21140_init(vm_instance_t *vm,char *name,
-                                        struct pci_bus *pci_bus,int pci_device,
+struct dec21140_data *dev_dec21140_init(vm_instance_t *vm, char *name,
+                                        struct pci_bus *pci_bus, int pci_device,
                                         int irq);
 
 /* Remove a DEC21140 device */
 void dev_dec21140_remove(struct dec21140_data *d);
 
 /* Bind a NIO to DEC21140 device */
-int dev_dec21140_set_nio(struct dec21140_data *d,netio_desc_t *nio);
+int dev_dec21140_set_nio(struct dec21140_data *d, netio_desc_t *nio);
 
 /* Unbind a NIO from a DEC21140 device */
 void dev_dec21140_unset_nio(struct dec21140_data *d);

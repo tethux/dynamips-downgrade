@@ -1,4 +1,4 @@
-/*  
+/*
  * Cisco router simulation platform.
  * Copyright (c) 2007 Christophe Fillot (cf@utc.fr)
  *
@@ -23,88 +23,88 @@
 #include "dev_c3725.h"
 
 /* Initialize a NM PC module in the specified slot */
-static int dev_c3725_pcmod_init(vm_instance_t *vm,struct cisco_card *card)
-{
- 
-   struct i8255x_data *data;
-   u_int slot = card->slot_id;
- 
-   /* Set the PCI bus */
-   card->pci_bus = vm->slots_pci_bus[slot];
+static int dev_c3725_pcmod_init(vm_instance_t *vm, struct cisco_card *card) {
 
-   /* Set the EEPROM */
-   cisco_card_set_eeprom(vm,card,cisco_eeprom_find_nm(card->driver->dev_type));
-   c3725_set_slot_eeprom(VM_C3725(vm),slot,&card->eeprom);
+  struct i8255x_data *data;
+  u_int slot = card->slot_id;
 
-   /* Create the Intel i8255x chip */
-   data = dev_i8255x_init(vm,card->dev_name,0,
-                          card->pci_bus,
-                          c3725_nm_get_pci_device(slot),
-                          c3725_net_irq_for_slot_port(slot,0));
+  /* Set the PCI bus */
+  card->pci_bus = vm->slots_pci_bus[slot];
 
-   /* Store device info into the router structure */
-   card->drv_info = data;
-   return(0);
+  /* Set the EEPROM */
+  cisco_card_set_eeprom(vm, card, cisco_eeprom_find_nm(card->driver->dev_type));
+  c3725_set_slot_eeprom(VM_C3725(vm), slot, &card->eeprom);
+
+  /* Create the Intel i8255x chip */
+  data = dev_i8255x_init(vm, card->dev_name, 0, card->pci_bus,
+                         c3725_nm_get_pci_device(slot),
+                         c3725_net_irq_for_slot_port(slot, 0));
+
+  /* Store device info into the router structure */
+  card->drv_info = data;
+  return (0);
 }
 
 /* Remove a NM PC module from the specified slot */
-static int dev_c3725_pcmod_shutdown(vm_instance_t *vm,struct cisco_card *card)
-{
-   struct i8255x_data *data = card->drv_info;
+static int dev_c3725_pcmod_shutdown(vm_instance_t *vm,
+                                    struct cisco_card *card) {
+  struct i8255x_data *data = card->drv_info;
 
-   /* Remove the NM EEPROM */
-   cisco_card_unset_eeprom(card);
-   c3725_set_slot_eeprom(VM_C3725(vm),card->slot_id,NULL);
+  /* Remove the NM EEPROM */
+  cisco_card_unset_eeprom(card);
+  c3725_set_slot_eeprom(VM_C3725(vm), card->slot_id, NULL);
 
-   /* Remove the Intel i2855x chip */
-   dev_i8255x_remove(data);
-   return(0);
+  /* Remove the Intel i2855x chip */
+  dev_i8255x_remove(data);
+  return (0);
 }
 
 /* Bind a Network IO descriptor */
-static int dev_c3725_pcmod_set_nio(vm_instance_t *vm,struct cisco_card *card,
-                                   u_int port_id,netio_desc_t *nio)
-{
-   struct i8255x_data *d = card->drv_info;
+static int dev_c3725_pcmod_set_nio(vm_instance_t *vm, struct cisco_card *card,
+                                   u_int port_id, netio_desc_t *nio) {
+  struct i8255x_data *d = card->drv_info;
 
-   if (!d || (port_id != 0))
-      return(-1);
+  if (!d || (port_id != 0))
+    return (-1);
 
-   dev_i8255x_set_nio(d,nio);
-   return(0);
+  dev_i8255x_set_nio(d, nio);
+  return (0);
 }
 
 /* Unbind a Network IO descriptor */
-static int dev_c3725_pcmod_unset_nio(vm_instance_t *vm,struct cisco_card *card,
-                                     u_int port_id)
-{
-   struct i8255x_data *d = card->drv_info;
+static int dev_c3725_pcmod_unset_nio(vm_instance_t *vm, struct cisco_card *card,
+                                     u_int port_id) {
+  struct i8255x_data *d = card->drv_info;
 
-   if (!d || (port_id != 0))
-      return(-1);
+  if (!d || (port_id != 0))
+    return (-1);
 
-   dev_i8255x_unset_nio(d);
-   return(0);
+  dev_i8255x_unset_nio(d);
+  return (0);
 }
 
 /* NM-NAM driver */
 struct cisco_card_driver dev_c3725_nm_nam_driver = {
-   "NM-NAM", 0, 0,
-   dev_c3725_pcmod_init, 
-   dev_c3725_pcmod_shutdown, 
-   NULL,
-   dev_c3725_pcmod_set_nio,
-   dev_c3725_pcmod_unset_nio,
-   NULL,
+    "NM-NAM",
+    0,
+    0,
+    dev_c3725_pcmod_init,
+    dev_c3725_pcmod_shutdown,
+    NULL,
+    dev_c3725_pcmod_set_nio,
+    dev_c3725_pcmod_unset_nio,
+    NULL,
 };
 
 /* NM-CIDS driver */
 struct cisco_card_driver dev_c3725_nm_cids_driver = {
-   "NM-CIDS", 0, 0,
-   dev_c3725_pcmod_init, 
-   dev_c3725_pcmod_shutdown, 
-   NULL,
-   dev_c3725_pcmod_set_nio,
-   dev_c3725_pcmod_unset_nio,
-   NULL,
+    "NM-CIDS",
+    0,
+    0,
+    dev_c3725_pcmod_init,
+    dev_c3725_pcmod_shutdown,
+    NULL,
+    dev_c3725_pcmod_set_nio,
+    dev_c3725_pcmod_unset_nio,
+    NULL,
 };

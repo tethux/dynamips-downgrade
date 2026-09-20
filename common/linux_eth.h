@@ -8,7 +8,7 @@
  */
 
 #ifndef __LINUX_ETH_H__
-#define __LINUX_ETH_H__  1
+#define __LINUX_ETH_H__ 1
 
 #include <sys/types.h>
 
@@ -19,9 +19,9 @@ int lnx_eth_get_dev_index(char *name);
 int lnx_eth_init_socket(char *device);
 
 /* Send an ethernet frame */
-ssize_t lnx_eth_send(int sck,int dev_id,char *buffer,size_t len);
+ssize_t lnx_eth_send(int sck, int dev_id, char *buffer, size_t len);
 
 /* Receive an ethernet frame */
-ssize_t lnx_eth_recv(int sck,char *buffer,size_t len);
+ssize_t lnx_eth_recv(int sck, char *buffer, size_t len);
 
 #endif

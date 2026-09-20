@@ -43,12 +43,12 @@
 #endif
 
 #ifndef TRUE
-#define TRUE  1
+#define TRUE 1
 #endif
 
 /* Endianness */
-#define ARCH_BIG_ENDIAN     0x4321
-#define ARCH_LITTLE_ENDIAN  0x1234
+#define ARCH_BIG_ENDIAN 0x4321
+#define ARCH_LITTLE_ENDIAN 0x1234
 
 #if defined(PPC) || defined(__powerpc__) || defined(__ppc__)
 #define ARCH_BYTE_ORDER ARCH_BIG_ENDIAN
@@ -62,7 +62,7 @@
 #define ARCH_BYTE_ORDER ARCH_LITTLE_ENDIAN
 #elif defined(__ia64__)
 #define ARCH_BYTE_ORDER ARCH_LITTLE_ENDIAN
-#elif defined(__arm__) || defined (__aarch64__)
+#elif defined(__arm__) || defined(__aarch64__)
 #define ARCH_BYTE_ORDER ARCH_LITTLE_ENDIAN
 #elif defined(__ppc64__)
 #define ARCH_BYTE_ORDER ARCH_LITTLE_ENDIAN
@@ -82,22 +82,23 @@
 
 #ifndef _Unused
 /* Function that is never used */
-#define _Unused  __attribute__((unused))
+#define _Unused __attribute__((unused))
 #endif
 
 #ifndef _maybe_used
-/* Function that is referenced from excluded code (commented out or depends on preprocessor) */
-#define _maybe_used  __attribute__((unused))
+/* Function that is referenced from excluded code (commented out or depends on
+ * preprocessor) */
+#define _maybe_used __attribute__((unused))
 #endif
 
 #ifndef UNUSED
 /* Variable that is never used (name is changed to get an error on use) */
-#define UNUSED(x)  UNUSED_ ## x __attribute__((unused))
+#define UNUSED(x) UNUSED_##x __attribute__((unused))
 #endif
 
 #if __GNUC__ > 2
 #define forced_inline inline __attribute__((always_inline))
-#define no_inline __attribute__ ((noinline))
+#define no_inline __attribute__((noinline))
 #else
 #define forced_inline inline
 #define no_inline
@@ -105,15 +106,15 @@
 
 #if __GNUC__ > 2
 /* http://kerneltrap.org/node/4705 */
-#define likely(x)    __builtin_expect(!!(x),1)
-#define unlikely(x)  __builtin_expect((x),0)
+#define likely(x) __builtin_expect(!!(x), 1)
+#define unlikely(x) __builtin_expect((x), 0)
 #else
-#define likely(x)    (x)
-#define unlikely(x)  (x)
+#define likely(x) (x)
+#define unlikely(x) (x)
 #endif
 
 #ifndef _not_aligned
-#define _not_aligned __attribute__ ((aligned (1)))
+#define _not_aligned __attribute__((aligned(1)))
 #endif
 
 /* Common types */
@@ -133,20 +134,20 @@ typedef unsigned long m_iptr_t;
 typedef m_uint64_t m_tmcnt_t;
 
 /* Max and min macro */
-#define m_max(a,b) (((a) > (b)) ? (a) : (b))
-#define m_min(a,b) (((a) < (b)) ? (a) : (b))
+#define m_max(a, b) (((a) > (b)) ? (a) : (b))
+#define m_min(a, b) (((a) < (b)) ? (a) : (b))
 
 /* A simple macro for adjusting pointers */
-#define PTR_ADJUST(type,ptr,size) (type)((char *)(ptr) + (size))
+#define PTR_ADJUST(type, ptr, size) (type)((char *)(ptr) + (size))
 
 /* Size of a field in a structure */
-#define SIZEOF(st,field) (sizeof(((st *)NULL)->field))
+#define SIZEOF(st, field) (sizeof(((st *)NULL)->field))
 
 /* Compute offset of a field in a structure */
-#define OFFSET(st,f)     ((long)&((st *)(NULL))->f)
+#define OFFSET(st, f) ((long)&((st *)(NULL))->f)
 
 /* Stringify a constant */
-#define XSTRINGIFY(val)  #val
-#define STRINGIFY(val)   XSTRINGIFY(val)
+#define XSTRINGIFY(val) #val
+#define STRINGIFY(val) XSTRINGIFY(val)
 
 #endif

@@ -15,8 +15,12 @@
 #define JIT_SUPPORT 0
 
 /* Wrappers to x86-codegen functions */
-#define ppc32_jit_tcb_set_patch(a,b) (void)(a); (void)(b)
-#define ppc32_jit_tcb_set_jump(a,b)  (void)(a); (void)(b)
+#define ppc32_jit_tcb_set_patch(a, b)                                          \
+  (void)(a);                                                                   \
+  (void)(b)
+#define ppc32_jit_tcb_set_jump(a, b)                                           \
+  (void)(a);                                                                   \
+  (void)(b)
 
 /* PPC instruction array */
 extern struct ppc32_insn_tag ppc32_insn_tags[];
@@ -25,6 +29,6 @@ extern struct ppc32_insn_tag ppc32_insn_tags[];
 void ppc32_jit_tcb_push_epilog(u_char **ptr);
 
 /* Execute JIT code */
-void ppc32_jit_tcb_exec(cpu_ppc_t *cpu,ppc32_jit_tcb_t *block);
+void ppc32_jit_tcb_exec(cpu_ppc_t *cpu, ppc32_jit_tcb_t *block);
 
 #endif

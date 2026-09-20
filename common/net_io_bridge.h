@@ -17,12 +17,12 @@
 
 typedef struct netio_bridge netio_bridge_t;
 struct netio_bridge {
-   char *name;
-   pthread_mutex_t lock;
-   netio_desc_t *nio[NETIO_BRIDGE_MAX_NIO];
+  char *name;
+  pthread_mutex_t lock;
+  netio_desc_t *nio[NETIO_BRIDGE_MAX_NIO];
 };
 
-#define NETIO_BRIDGE_LOCK(t)   pthread_mutex_lock(&(t)->lock)
+#define NETIO_BRIDGE_LOCK(t) pthread_mutex_lock(&(t)->lock)
 #define NETIO_BRIDGE_UNLOCK(t) pthread_mutex_unlock(&(t)->lock)
 
 /* Acquire a reference to NetIO bridge from the registry (inc ref count) */
@@ -35,13 +35,13 @@ int netio_bridge_release(char *name);
 netio_bridge_t *netio_bridge_create(char *name);
 
 /* Add a NetIO descriptor to a virtual bridge */
-int netio_bridge_add_netio(netio_bridge_t *t,char *nio_name);
+int netio_bridge_add_netio(netio_bridge_t *t, char *nio_name);
 
 /* Remove a NetIO descriptor from a virtual bridge */
-int netio_bridge_remove_netio(netio_bridge_t *t,char *nio_name);
+int netio_bridge_remove_netio(netio_bridge_t *t, char *nio_name);
 
 /* Save the configuration of a brdige */
-void netio_bridge_save_config(netio_bridge_t *t,FILE *fd);
+void netio_bridge_save_config(netio_bridge_t *t, FILE *fd);
 
 /* Save configurations of all NIO bridges */
 void netio_bridge_save_config_all(FILE *fd);

@@ -15,8 +15,8 @@
 
 #define JIT_SUPPORT 0
 
-#define mips64_jit_tcb_set_patch(a,b)
-#define mips64_jit_tcb_set_jump(a,b)
+#define mips64_jit_tcb_set_patch(a, b)
+#define mips64_jit_tcb_set_jump(a, b)
 
 /* MIPS instruction array */
 extern struct mips64_insn_tag mips64_insn_tags[];
@@ -25,6 +25,6 @@ extern struct mips64_insn_tag mips64_insn_tags[];
 void mips64_jit_tcb_push_epilog(mips64_jit_tcb_t *block);
 
 /* Execute JIT code */
-void mips64_jit_tcb_exec(cpu_mips_t *cpu,mips64_jit_tcb_t *block);
+void mips64_jit_tcb_exec(cpu_mips_t *cpu, mips64_jit_tcb_t *block);
 
 #endif

@@ -20,59 +20,59 @@
 #include "vm.h"
 
 /* Default C2600 parameters */
-#define C2600_DEFAULT_MAINBOARD    "2610"
-#define C2600_DEFAULT_RAM_SIZE     64
-#define C2600_DEFAULT_ROM_SIZE     2
-#define C2600_DEFAULT_NVRAM_SIZE   128
-#define C2600_DEFAULT_CONF_REG     0x2102
-#define C2600_DEFAULT_CLOCK_DIV    8
-#define C2600_DEFAULT_RAM_MMAP     1
-#define C2600_DEFAULT_DISK0_SIZE   0
-#define C2600_DEFAULT_DISK1_SIZE   0
-#define C2600_DEFAULT_IOMEM_SIZE   15  /* Percents! */
+#define C2600_DEFAULT_MAINBOARD "2610"
+#define C2600_DEFAULT_RAM_SIZE 64
+#define C2600_DEFAULT_ROM_SIZE 2
+#define C2600_DEFAULT_NVRAM_SIZE 128
+#define C2600_DEFAULT_CONF_REG 0x2102
+#define C2600_DEFAULT_CLOCK_DIV 8
+#define C2600_DEFAULT_RAM_MMAP 1
+#define C2600_DEFAULT_DISK0_SIZE 0
+#define C2600_DEFAULT_DISK1_SIZE 0
+#define C2600_DEFAULT_IOMEM_SIZE 15 /* Percents! */
 
 /* 2600 characteristics: 1 NM + mainboard, 2 onboard WIC slots */
-#define C2600_MAX_NM_BAYS   2
-#define C2600_MAX_WIC_BAYS  2
+#define C2600_MAX_NM_BAYS 2
+#define C2600_MAX_WIC_BAYS 2
 
 /* C2600 Virtual Timer Interrupt */
-#define C2600_VTIMER_IRQ  0
+#define C2600_VTIMER_IRQ 0
 
 /* C2600 DUART Interrupt */
-#define C2600_DUART_IRQ   1
+#define C2600_DUART_IRQ 1
 
 /* C2600 Network I/O Interrupt */
-#define C2600_NETIO_IRQ   2
+#define C2600_NETIO_IRQ 2
 
 /* C2600 PA Management Interrupt */
-#define C2600_PA_MGMT_IRQ   3
+#define C2600_PA_MGMT_IRQ 3
 
 /* Network IRQ */
-#define C2600_NETIO_IRQ_BASE       32
-#define C2600_NETIO_IRQ_PORT_BITS  2
-#define C2600_NETIO_IRQ_PORT_MASK  ((1 << C2600_NETIO_IRQ_PORT_BITS) - 1)
-#define C2600_NETIO_IRQ_PER_SLOT   (1 << C2600_NETIO_IRQ_PORT_BITS)
-#define C2600_NETIO_IRQ_END        \
+#define C2600_NETIO_IRQ_BASE 32
+#define C2600_NETIO_IRQ_PORT_BITS 2
+#define C2600_NETIO_IRQ_PORT_MASK ((1 << C2600_NETIO_IRQ_PORT_BITS) - 1)
+#define C2600_NETIO_IRQ_PER_SLOT (1 << C2600_NETIO_IRQ_PORT_BITS)
+#define C2600_NETIO_IRQ_END                                                    \
   (C2600_NETIO_IRQ_BASE + (C2600_MAX_NM_BAYS * C2600_NETIO_IRQ_PER_SLOT) - 1)
 
 /* C2600 common device addresses */
-#define C2600_FLASH_ADDR      0x60000000ULL
-#define C2600_WIC_ADDR        0x67000000ULL
-#define C2600_IOFPGA_ADDR     0x67400000ULL
-#define C2600_NVRAM_ADDR      0x67c00000ULL
-#define C2600_PCICTRL_ADDR    0x68000000ULL
-#define C2600_MPC860_ADDR     0x68010000ULL
-#define C2600_DUART_ADDR      0xffe00000ULL
-#define C2600_ROM_ADDR        0xfff00000ULL
+#define C2600_FLASH_ADDR 0x60000000ULL
+#define C2600_WIC_ADDR 0x67000000ULL
+#define C2600_IOFPGA_ADDR 0x67400000ULL
+#define C2600_NVRAM_ADDR 0x67c00000ULL
+#define C2600_PCICTRL_ADDR 0x68000000ULL
+#define C2600_MPC860_ADDR 0x68010000ULL
+#define C2600_DUART_ADDR 0xffe00000ULL
+#define C2600_ROM_ADDR 0xfff00000ULL
 
 /* WIC interval in address space */
-#define C2600_WIC_SIZE  0x400
+#define C2600_WIC_SIZE 0x400
 
 /* Reserved space for ROM in NVRAM */
-#define C2600_NVRAM_ROM_RES_SIZE  2048
+#define C2600_NVRAM_ROM_RES_SIZE 2048
 
 /* C2600 ELF Platform ID */
-#define C2600_ELF_MACHINE_ID  0x2b
+#define C2600_ELF_MACHINE_ID 0x2b
 
 #define VM_C2600(vm) ((c2600_t *)vm->hw_data)
 
@@ -81,55 +81,55 @@ typedef struct c2600_router c2600_t;
 
 /* C2600 router */
 struct c2600_router {
-   /* Mainboard type (2610, 2611, etc) */
-   char *mainboard_type;
+  /* Mainboard type (2610, 2611, etc) */
+  char *mainboard_type;
 
-   /* Is the router a XM model ? */
-   int xm_model;
+  /* Is the router a XM model ? */
+  int xm_model;
 
-   /* Chassis MAC address */
-   n_eth_addr_t mac_addr;
+  /* Chassis MAC address */
+  n_eth_addr_t mac_addr;
 
-   char board_id[20];
+  char board_id[20];
 
-   /* Associated VM instance */
-   vm_instance_t *vm;
+  /* Associated VM instance */
+  vm_instance_t *vm;
 
-   /* I/O FPGA */
-   struct c2600_iofpga_data *iofpga_data;
+  /* I/O FPGA */
+  struct c2600_iofpga_data *iofpga_data;
 
-   /* 
-    * Mainboard EEPROM.
-    * It can be modified to change the chassis MAC address.
-    */
-   struct cisco_eeprom mb_eeprom;
-   struct nmc93cX6_group mb_eeprom_group;
+  /*
+   * Mainboard EEPROM.
+   * It can be modified to change the chassis MAC address.
+   */
+  struct cisco_eeprom mb_eeprom;
+  struct nmc93cX6_group mb_eeprom_group;
 
-   /* Network Module EEPROM */
-   struct nmc93cX6_group nm_eeprom_group;
+  /* Network Module EEPROM */
+  struct nmc93cX6_group nm_eeprom_group;
 
-   /* MPC860 device private data */
-   struct mpc860_data *mpc_data;
+  /* MPC860 device private data */
+  struct mpc860_data *mpc_data;
 };
 
 /* Get WIC device address for the specified onboard port */
-int c2600_get_onboard_wic_addr(u_int slot,m_uint64_t *phys_addr);
+int c2600_get_onboard_wic_addr(u_int slot, m_uint64_t *phys_addr);
 
 /* Set EEPROM for the specified slot */
-int c2600_set_slot_eeprom(c2600_t *router,u_int slot,
+int c2600_set_slot_eeprom(c2600_t *router, u_int slot,
                           struct cisco_eeprom *eeprom);
 
 /* Get network IRQ for specified slot/port */
-u_int c2600_net_irq_for_slot_port(u_int slot,u_int port);
+u_int c2600_net_irq_for_slot_port(u_int slot, u_int port);
 
 /* Set mainboard type */
-int c2600_mainboard_set_type(c2600_t *router,char *mainboard_type);
+int c2600_mainboard_set_type(c2600_t *router, char *mainboard_type);
 
 /* Set chassis MAC address */
-int c2600_chassis_set_mac_addr(c2600_t *router,char *mac_addr);
+int c2600_chassis_set_mac_addr(c2600_t *router, char *mac_addr);
 
 /* Set the system id */
-int c2600_set_system_id(c2600_t *router,char *id);
+int c2600_set_system_id(c2600_t *router, char *id);
 
 /* Burn the system id into the appropriate eeprom if possible */
 int c2600_refresh_systemid(c2600_t *router);
@@ -141,12 +141,11 @@ void c2600_show_hardware(c2600_t *router);
 void c2600_init_eeprom_groups(c2600_t *router);
 
 /* Create the c2600 PCI controller device */
-int dev_c2600_pci_init(vm_instance_t *vm,char *name,
-                       m_uint64_t paddr,m_uint32_t len,
-                       struct pci_bus *bus);
+int dev_c2600_pci_init(vm_instance_t *vm, char *name, m_uint64_t paddr,
+                       m_uint32_t len, struct pci_bus *bus);
 
 /* dev_c2600_iofpga_init() */
-int dev_c2600_iofpga_init(c2600_t *router,m_uint64_t paddr,m_uint32_t len);
+int dev_c2600_iofpga_init(c2600_t *router, m_uint64_t paddr, m_uint32_t len);
 
 /* Register the c2600 platform */
 int c2600_platform_register(void);

@@ -13,11 +13,11 @@
 
 /* NM Information */
 struct nm_bay_info {
-   int pci_bridge_device;
-   int pci_device;
+  int pci_bridge_device;
+  int pci_device;
 };
 
 /* Get a NM bay information */
-struct nm_bay_info *c3600_nm_get_bay_info(u_int chassis,u_int nm_bay);
+struct nm_bay_info *c3600_nm_get_bay_info(u_int chassis, u_int nm_bay);
 
 #endif

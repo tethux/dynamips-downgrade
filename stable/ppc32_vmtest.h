@@ -17,6 +17,6 @@
 #include "vm.h"
 
 /* Default parameters of the test VM */
-#define PPC32_VMTEST_DEFAULT_RAM_SIZE  256
+#define PPC32_VMTEST_DEFAULT_RAM_SIZE 256
 
 #endif

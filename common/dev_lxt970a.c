@@ -11,4 +11,3 @@
  */
 
 #include "dev_lxt970a.h"
-

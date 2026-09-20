@@ -10,4 +10,3 @@
 double get_cpu_time();
 
 #endif
-
