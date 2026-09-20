@@ -1,0 +1,159 @@
+schema_version: 1
+
+conventions:
+  c_abi:
+    result: dyn_result
+    handles: opaque
+    strings: borrowed_utf8_nul_terminated
+    outputs: cleared_on_error
+  cpp:
+    standard: c++23
+    result: std::expected
+    handles: move_only_raii
+  go:
+    standard: "1.26"
+    result: error
+    handles: explicit_close
+  lifetime:
+    runtime: process_global
+    handles_must_be_released_before: runtime.shutdown
+  threading:
+    policy: externally_serialized
+
+types:
+  void:
+    kind: unit
+  int:
+    kind: scalar
+    c_type: int
+    cpp_type: int
+  int32:
+    kind: scalar
+    c_type: int32_t
+    cpp_type: std::int32_t
+  argv:
+    kind: slice
+    c_type: "char *[]"
+    cpp_type: "char *[]"
+    element: string
+    ownership: borrowed
+  runtime:
+    kind: context
+    ownership: unique
+  vm:
+    kind: handle
+    c_type: dyn_vm
+    ownership: registry_reference
+    release: dyn_vm_release
+  nio:
+    kind: handle
+    c_type: dyn_nio
+    ownership: registry_reference
+    release: dyn_nio_release
+  string:
+    kind: scalar
+    c_type: const char *
+    cpp_type: std::string_view
+    ownership: borrowed
+  port:
+    kind: scalar
+    c_type: uint16_t
+    cpp_type: std::uint16_t
+
+errors:
+  - invalid_argument
+  - not_initialized
+  - already_initialized
+  - out_of_memory
+  - create_failed
+  - start_failed
+  - stop_failed
+  - internal
+
+operations:
+  - module: runtime
+    operation: init
+    c_name: dyn_runtime_init
+    cpp_name: dynamips::runtime::init
+    go_name: dynamips.New
+    args:
+      - {name: argc, type: int}
+      - {name: argv, type: argv}
+    returns: {type: "handle<runtime>", ownership: unique}
+    errors: [invalid_argument, already_initialized, start_failed]
+    threading: {requires_runtime: false, blocking: false}
+    source: {core: [dyn_runtime_init]}
+
+  - module: runtime
+    operation: shutdown
+    c_name: dyn_runtime_shutdown
+    cpp_name: dynamips::runtime::~runtime
+    go_name: dynamips.Runtime.Close
+    args: []
+    returns: {type: void}
+    errors: []
+    threading: {requires_runtime: true, blocking: true}
+    source: {core: [dyn_runtime_shutdown]}
+
+  - module: vm
+    operation: create
+    c_name: dyn_vm_create
+    cpp_name: dynamips::vm::create
+    go_name: dynamips.Runtime.CreateVM
+    args:
+      - {name: name, type: string}
+      - {name: instance_id, type: int32}
+      - {name: platform, type: string}
+    returns: {type: "handle<vm>", ownership: registry_reference}
+    errors:
+      [invalid_argument, not_initialized, out_of_memory, create_failed, internal]
+    threading: {requires_runtime: true, blocking: false}
+    source:
+      cli: stable/hv_vm.c:cmd_create
+      core: [vm_create_instance]
+
+  - module: vm
+    operation: start
+    c_name: dyn_vm_start
+    cpp_name: dynamips::vm::start
+    go_name: dynamips.VM.Start
+    args:
+      - {name: vm, type: "handle<vm>", ownership: borrowed}
+    returns: {type: void}
+    errors: [invalid_argument, not_initialized, start_failed, internal]
+    threading: {requires_runtime: true, blocking: false}
+    source:
+      cli: stable/hv_vm.c:cmd_start
+      core: [vm_init_instance]
+
+  - module: vm
+    operation: stop
+    c_name: dyn_vm_stop
+    cpp_name: dynamips::vm::stop
+    go_name: dynamips.VM.Stop
+    args:
+      - {name: vm, type: "handle<vm>", ownership: borrowed}
+    returns: {type: void}
+    errors: [invalid_argument, not_initialized, stop_failed, internal]
+    threading: {requires_runtime: true, blocking: true}
+    source:
+      cli: stable/hv_vm.c:cmd_stop
+      core: [vm_stop_instance]
+
+  - module: nio
+    operation: create_udp
+    c_name: dyn_nio_create_udp
+    cpp_name: dynamips::nio::create_udp
+    go_name: dynamips.Runtime.CreateUDP
+    args:
+      - {name: name, type: string}
+      - {name: local_port, type: port}
+      - {name: remote_host, type: string}
+      - {name: remote_port, type: port}
+    returns: {type: "handle<nio>", ownership: registry_reference}
+    errors:
+      [invalid_argument, not_initialized, out_of_memory, create_failed, internal]
+    threading: {requires_runtime: true, blocking: false}
+    source:
+      cli: common/hv_nio.c:cmd_create_udp
+      core: [netio_desc_create_udp]

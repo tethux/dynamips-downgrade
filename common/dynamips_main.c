@@ -23,7 +23,7 @@ extern char *hypervisor_ip_address;
 int main(int argc, char *argv[]) {
   vm_instance_t *vm;
 
-  if (dyn_runtime_init(argc, argv) == -1)
+  if (dyn_runtime_init(argc, argv) != DYN_OK)
     return (EXIT_FAILURE);
 
   if (!hypervisor_mode) {

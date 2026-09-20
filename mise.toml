@@ -1,6 +1,10 @@
 [tools]
 "github:xmake-io/xmake" = "latest"
 clang-format = "latest"
+go = "1.26.5"
+golangci-lint = "2.10.1"
+"go:golang.org/x/tools/cmd/goimports" = "0.42.0"
+"go:mvdan.cc/gofumpt" = "0.9.2"
 
 [tasks.build]
 description = "build Dynamips"
@@ -11,7 +15,25 @@ description = "build Dynamips in debug mode"
 run = "xmake f -m debug -y && xmake -y"
 
 [tasks.test]
-description = "run the library linkage tests"
+description = "run the Go binding tests"
+depends = ["test:go"]
+
+[tasks."build:native"]
+description = "build the native library for Go"
+run = "xmake f -m debug -y && xmake build -y dynamips-bindings"
+
+[tasks."test:go"]
+description = "test the Go bindings"
+depends = ["build:native"]
+run = "go test ./..."
+
+[tasks."lint:go"]
+description = "lint the Go bindings"
+depends = ["build:native"]
+run = "golangci-lint run ./..."
+
+[tasks."test:native"]
+description = "run the native linkage tests"
 run = "xmake test -v"
 
 [tasks.run]
@@ -24,8 +46,12 @@ description = "generate compile_commands.json"
 run = "xmake project -k compile_commands ."
 
 [tasks.format]
-description = "format C sources and headers"
-run = "find common stable unstable include examples -type f \\( -name '*.c' -o -name '*.h' \\) -print0 | xargs -0 clang-format -i"
+description = "format C and C++ sources"
+run = "find bindings common stable unstable include examples -type f \\( -name '*.c' -o -name '*.h' -o -name '*.cpp' -o -name '*.hpp' \\) -print0 | xargs -0 clang-format -i"
+
+[tasks."fmt:go"]
+description = "format Go code"
+run = "find . -path ./build -prune -o -name '*.go' -print0 | xargs -0 goimports -w && find . -path ./build -prune -o -name '*.go' -print0 | xargs -0 gofumpt -w"
 
 [tasks.clean]
 description = "remove generated build files"

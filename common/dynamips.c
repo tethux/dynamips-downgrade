@@ -895,7 +895,16 @@ static void destroy_cmd_line_vars(void) {
   }
 }
 
-int dyn_runtime_init(int argc, char *argv[]) {
+static int runtime_initialized = 0;
+
+int dyn_runtime_is_initialized(void) { return (runtime_initialized); }
+
+dyn_result dyn_runtime_init(int argc, char *argv[]) {
+  if (runtime_initialized)
+    return (DYN_ERR_ALREADY_INITIALIZED);
+
+  if (argc < 1 || argv == NULL || argv[0] == NULL)
+    return (DYN_ERR_INVALID_ARGUMENT);
 
 #ifdef PROFILE
   atexit(profiler_savestat);
@@ -946,7 +955,7 @@ int dyn_runtime_init(int argc, char *argv[]) {
 
   /* Periodic tasks initialization */
   if (ptask_init(0) == -1)
-    return (-1);
+    return (DYN_ERR_START_FAILED);
 
   /* Create instruction lookup tables */
   mips64_jit_create_ilt();
@@ -956,11 +965,16 @@ int dyn_runtime_init(int argc, char *argv[]) {
 
   setup_signals();
 
-  return (0);
+  runtime_initialized = 1;
+  return (DYN_OK);
 }
 
 void dyn_runtime_shutdown(void) {
+  if (!runtime_initialized)
+    return;
+
   dynamips_reset();
   close_log_file();
   destroy_cmd_line_vars();
+  runtime_initialized = 0;
 }

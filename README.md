@@ -52,9 +52,10 @@ and the frankly shameless borrowing of a working emulator, possible.
 
 ### How to compile Dynamips
 
-Dynamips uses xmake with Clang and C23. mise provides the normal project
-commands and tool versions. xmake uses installed dependencies first and falls
-back to its package repository when necessary.
+Dynamips uses xmake with Clang, C23, and C++23. The embedding API also has Go
+bindings modeled after shitnet. mise provides the normal project commands and
+tool versions. xmake uses installed dependencies first and falls back to its
+package repository when necessary.
 
 #### Build Dependencies
 
@@ -88,11 +89,49 @@ cd dynamips-downgrade
 mise run build
 ```
 
-The default build produces `dynamips`, `dynamips-core`, `dynamips-hello`, and
-`nvram_export`. Run the linkage test with:
+The default build produces `dynamips`, `dynamips-core`, `dynamips-bindings`,
+`dynamips-hello`, and `nvram_export`.
+
+Run the Go binding test, which builds the native debug libraries first:
 
 ```
 mise run test
+```
+
+Format and lint the Go binding separately:
+
+```
+mise run fmt:go
+mise run lint:go
+```
+
+The current Go surface initializes the embedded runtime, creates and stops VMs,
+and creates UDP NIOs:
+
+```go
+runtime, err := dynamips.New()
+if err != nil {
+	return err
+}
+
+vm, err := runtime.CreateVM(dynamips.VMConfig{
+	Name:       "router-1",
+	InstanceID: 1,
+	Platform:   "c7200",
+})
+if err != nil {
+	return err
+}
+
+vm.Close()
+return runtime.Close()
+```
+
+Inspect the local API with:
+
+```
+mise exec -- go doc github.com/tethux/dynamips-downgrade
+mise exec -- go doc github.com/tethux/dynamips-downgrade/errs
 ```
 
 Select the unstable implementation or another JIT backend during configuration:

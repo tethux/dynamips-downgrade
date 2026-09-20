@@ -1,8 +1,7 @@
 set_project("dynamips")
 set_version("0.2.25")
-set_languages("c23")
+set_languages("c23", "cxx23")
 set_toolchains("clang")
-set_toolset("ld", "clang")
 
 add_rules("mode.debug", "mode.release")
 add_rules("plugin.compile_commands.autoupdate", {outputdir = "."})
@@ -154,6 +153,12 @@ configure_dynamips_target("dynamips-core")
             add_files(code .. "/ppc32_" .. jit_arch .. "_trans.c")
         end
     end
+
+configure_dynamips_target("dynamips-bindings")
+    set_kind("static")
+    add_deps("dynamips-core", {public = true})
+    add_headerfiles("include/(dynamips/*.h)", "include/(dynamips/*.hpp)")
+    add_files("bindings/*.cpp")
 
 configure_dynamips_target("dynamips")
     set_kind("binary")
