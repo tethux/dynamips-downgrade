@@ -17,11 +17,11 @@
 #include <sys/stat.h>
 #include <signal.h>
 #include <fcntl.h>
-#include <assert.h>
 #include <getopt.h>
 
+#include <dynamips/dynamips.h>
+
 #include "dynamips.h"
-#include "cpu.h"
 #include "vm.h"
 
 #ifdef USE_UNSTABLE
@@ -913,9 +913,8 @@ static void destroy_cmd_line_vars(void)
    }
 }
 
-int main(int argc,char *argv[])
+int dyn_runtime_init(int argc,char *argv[])
 {
-   vm_instance_t *vm;
 
 #ifdef PROFILE
    atexit(profiler_savestat);
@@ -966,7 +965,7 @@ int main(int argc,char *argv[])
 
    /* Periodic tasks initialization */
    if (ptask_init(0) == -1)
-      exit(EXIT_FAILURE);
+      return(-1);
 
    /* Create instruction lookup tables */
    mips64_jit_create_ilt();
@@ -976,39 +975,12 @@ int main(int argc,char *argv[])
 
    setup_signals();
 
-   if (!hypervisor_mode) {
-      /* Initialize the default instance */
-      vm = vm_acquire("default");
-      assert(vm != NULL);
+   return(0);
+}
 
-      if (vm_init_instance(vm) == -1) {
-         fprintf(stderr,"Unable to initialize router instance.\n");
-         exit(EXIT_FAILURE);
-      }
-
-#if (DEBUG_INSN_PERF_CNT > 0) || (DEBUG_BLOCK_PERF_CNT > 0)
-      {
-         m_uint32_t counter,prev = 0,delta;
-         while(vm->status == VM_STATUS_RUNNING) {
-            counter = cpu_get_perf_counter(vm->boot_cpu);
-            delta = counter - prev;
-            prev = counter;
-            printf("delta = %u\n",delta);
-            sleep(1);
-         }
-      }
-#else
-      /* Start instance monitoring */
-      vm_monitor(vm);
-#endif
-
-      /* Free resources used by instance */
-      vm_release(vm);
-   } else {
-      hypervisor_tcp_server(hypervisor_ip_address,hypervisor_tcp_port);
-   }
-
+void dyn_runtime_shutdown(void)
+{
    dynamips_reset();
    close_log_file();
-   return(0);
+   destroy_cmd_line_vars();
 }

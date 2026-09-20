@@ -32,8 +32,8 @@ License: GNU GPLv2 only
 
 ### How to compile Dynamips
 
-Dynamips now uses the CMake build system. To compile Dynamips you will need 
-CMake and a working GCC or Clang compiler, as well as the build dependencies.
+Dynamips uses xmake with Clang and C23. xmake uses installed dependencies first
+and falls back to its package repository when necessary.
 
 #### Build Dependencies
 
@@ -52,17 +52,7 @@ distributions package list to find them.
 
 MacPort & Homebrew:
 - libelf
-- cmake
-
-Windows with Cygwin:
-
-- Install Winpcap: https://www.winpcap.org/
-- Install Cygwin 32-bit (setup-x86.exe): https://cygwin.com/install.html
-- In Cygwin setup, install the ``make``, ``cmake``, ``gcc-core`` and ``git`` packages
-- Additionally, install the ``libelf0`` package (**important:** both bin and src)
-- Download and unzip Winpcap developer pack: http://www.winpcap.org/devel.htm
-- Copy the libraries ``WpdPack\Lib\libpacket.a`` and ``WpdPack\Lib\libwpcap.a`` to ``cygwin\lib\``
-- Copy all headers from ``WpdPack\Include`` to ``cygwin\usr\include\``
+- xmake
 
 #### Compiling (Linux/Mac)
 
@@ -72,79 +62,48 @@ Git repository using:
 ```
 git clone https://github.com/GNS3/dynamips.git
 cd dynamips
-mkdir build
-cd build
-cmake ..
+xmake f -m release
+xmake
 ```
 
-On OSX Yosemite you need to force usage of GCC 4.9:
-```
-cmake ..  -DCMAKE_C_COMPILER=/usr/local/bin/gcc-4.9
-```
-
-And for building stable release:
-```
-cmake .. -DDYNAMIPS_CODE=stable  -DCMAKE_C_COMPILER=/usr/local/bin/gcc-4.9
-```
-
-This will generate the Makefiles required for compiling Dynamips. To just build 
-Dynamips simple run:
+The default build produces `dynamips`, `dynamips-core`, `dynamips-hello`, and
+`nvram_export`. Run the linkage test with:
 
 ```
-make
-```
-or to build and install Dynamips run:
-
-```
-make install
+xmake test
 ```
 
-The specify a differant installation location run:
+Select the unstable implementation or another JIT backend during configuration:
 
 ```
-cmake -DCMAKE_INSTALL_PREFIX=/target/path ..
+xmake f --dynamips_code=unstable --dynamips_arch=nojit
 ```
 
-#### Compiling (Windows)
-
-Open the Cygwin terminal.
-
-First, the libelf has to be manually compiled and installed:
-
-``<MIRROR_DOWNLOADS>`` is the directory used by your Cygwin mirror to download packages.
-It is possible that the libelf version differs from below.
+Optional helper programs can also be enabled during configuration:
 
 ```
-cp <MIRROR_DOWNLOADS>/x86/release/libelf/libelf0/libelf0-0.8.13-2-src.tar.bz2 .
-mkdir libelf && tar xvjf libelf0-0.8.13-2-src.tar.bz2 -C libelf
-cd libelf
-tar xvzf libelf-0.8.13.tar.gz
-cd libelf-0.8.13
-./configure
-make
-make install
+xmake f --build_udp_send=y --build_udp_recv=y
 ```
 
-Then, Dynamips can be build:
+Build and install with:
 
 ```
-git clone git://github.com/GNS3/dynamips.git
-cd dynamips
-mkdir build
-cd build
-cmake ..
-make
+xmake
+xmake install
 ```
 
-You will find ``dynamips.exe`` in the stable directory.
-Put ``cygwin1.dll`` from the Cygwin bin directory in the same directory as ``dynamips.exe`` to be able to start it from outside Cygwin terminal.
+To specify a different installation location run:
+
+```
+xmake install -o /target/path
+```
 
 ### Releasing
 
 * Update ChangeLog
 * In common/dynamips.c update sw_version_tag with date
 * Update RELEASE-NOTE
-* Update CMakeLists.txt
+* Update xmake.lua
 * git tag the release
 
 ### Useful Information 
