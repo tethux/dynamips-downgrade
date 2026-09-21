@@ -61,6 +61,11 @@ types:
     kind: scalar
     c_type: uint16_t
     cpp_type: std::uint16_t
+  vm_status:
+    kind: enum
+    c_type: dyn_vm_status
+    cpp_type: dynamips::vm_status
+    values: [halted, shutdown, running, suspended]
 
 errors:
   - invalid_argument
@@ -141,6 +146,20 @@ operations:
     source:
       cli: stable/hv_vm.c:cmd_stop
       core: [vm_stop_instance]
+
+  - module: vm
+    operation: status
+    c_name: dyn_vm_get_status
+    cpp_name: dynamips::vm::status
+    go_name: dynamips.VM.Status
+    args:
+      - {name: vm, type: "handle<vm>", ownership: borrowed}
+    returns: {type: vm_status}
+    errors: [invalid_argument, not_initialized, internal]
+    threading: {requires_runtime: true, blocking: false}
+    source:
+      cli: stable/hv_vm.c:cmd_get_status
+      core: [vm_instance_t.status]
 
   - module: nio
     operation: create_udp

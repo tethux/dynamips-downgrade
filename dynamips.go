@@ -54,6 +54,16 @@ type VM struct {
 	handle  *C.dyn_vm
 }
 
+// VMStatus is the VM's current execution state.
+type VMStatus uint32
+
+const (
+	VMHalted    VMStatus = C.DYN_VM_HALTED
+	VMShutdown  VMStatus = C.DYN_VM_SHUTDOWN
+	VMRunning   VMStatus = C.DYN_VM_RUNNING
+	VMSuspended VMStatus = C.DYN_VM_SUSPENDED
+)
+
 // NIO owns one reference to a Dynamips network I/O object.
 type NIO struct {
 	runtime *Runtime
@@ -179,6 +189,23 @@ func (vm *VM) Stop() error {
 		return nativeError("stop VM", status)
 	}
 	return nil
+}
+
+// Status returns the VM's current execution state.
+func (vm *VM) Status() (VMStatus, error) {
+	runtimeMu.Lock()
+	defer runtimeMu.Unlock()
+
+	if vm == nil || vm.handle == nil {
+		return VMHalted, operationError("get VM status", errs.ErrClosed, nil)
+	}
+
+	var value C.dyn_vm_status
+	status := C.dyn_vm_get_status(vm.handle, &value)
+	if status != C.DYN_OK {
+		return VMHalted, nativeError("get VM status", status)
+	}
+	return VMStatus(value), nil
 }
 
 // Close releases the VM reference.

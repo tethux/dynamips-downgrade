@@ -23,6 +23,13 @@ enum class error : int {
 
 template <typename T> using result = std::expected<T, error>;
 
+enum class vm_status : int {
+  halted = DYN_VM_HALTED,
+  shutdown = DYN_VM_SHUTDOWN,
+  running = DYN_VM_RUNNING,
+  suspended = DYN_VM_SUSPENDED,
+};
+
 [[nodiscard]] constexpr error to_error(dyn_result value) noexcept {
   return static_cast<error>(value);
 }
@@ -94,6 +101,7 @@ public:
 
   [[nodiscard]] result<void> start() noexcept;
   [[nodiscard]] result<void> stop() noexcept;
+  [[nodiscard]] result<vm_status> status() const noexcept;
 
 private:
   explicit vm(dyn_vm *handle) noexcept : handle_(handle) {}

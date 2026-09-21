@@ -50,6 +50,14 @@ fn vm::stop() noexcept -> result<void> {
   return as_result(dyn_vm_stop(handle_));
 }
 
+fn vm::status() const noexcept -> result<vm_status> {
+  dyn_vm_status value = DYN_VM_HALTED;
+  const let status = dyn_vm_get_status(handle_, &value);
+  if (status != DYN_OK)
+    return std::unexpected(to_error(status));
+  return static_cast<vm_status>(value);
+}
+
 fn nio::create_udp(std::string_view name, std::uint16_t local_port,
                    std::string_view remote_host,
                    std::uint16_t remote_port) noexcept -> result<nio> {

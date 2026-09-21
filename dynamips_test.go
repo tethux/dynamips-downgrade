@@ -31,6 +31,9 @@ func TestRuntimeVMAndUDP(t *testing.T) {
 		t.Fatalf("create VM: %v", err)
 	}
 	t.Cleanup(vm.Close)
+	if status, statusErr := vm.Status(); statusErr != nil || status != dynamips.VMHalted {
+		t.Fatalf("new VM status: got %v, %v; want halted", status, statusErr)
+	}
 
 	nio, err := runtime.CreateUDP(dynamips.UDPConfig{
 		Name:       "go-bindings-udp",
@@ -49,8 +52,14 @@ func TestRuntimeVMAndUDP(t *testing.T) {
 	if stopErr := vm.Stop(); stopErr != nil {
 		t.Fatalf("stop VM: %v", stopErr)
 	}
+	if status, statusErr := vm.Status(); statusErr != nil || status != dynamips.VMHalted {
+		t.Fatalf("stopped VM status: got %v, %v; want halted", status, statusErr)
+	}
 	nio.Close()
 	vm.Close()
+	if _, statusErr := vm.Status(); !errors.Is(statusErr, errs.ErrClosed) {
+		t.Fatalf("closed VM status: got %v, want ErrClosed", statusErr)
+	}
 	if closeErr := runtime.Close(); closeErr != nil {
 		t.Fatalf("close runtime: %v", closeErr)
 	}

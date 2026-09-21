@@ -22,6 +22,13 @@ typedef enum dyn_result {
 typedef struct dyn_vm dyn_vm;
 typedef struct dyn_nio dyn_nio;
 
+typedef enum dyn_vm_status {
+  DYN_VM_HALTED = 0,
+  DYN_VM_SHUTDOWN = 1,
+  DYN_VM_RUNNING = 2,
+  DYN_VM_SUSPENDED = 3,
+} dyn_vm_status;
+
 const char *dyn_result_message(dyn_result result);
 
 dyn_result dyn_runtime_init(int argc, char *argv[]);
@@ -33,6 +40,7 @@ dyn_result dyn_vm_create(const char *name, int32_t instance_id,
 void dyn_vm_release(dyn_vm *vm);
 dyn_result dyn_vm_start(dyn_vm *vm);
 dyn_result dyn_vm_stop(dyn_vm *vm);
+dyn_result dyn_vm_get_status(const dyn_vm *vm, dyn_vm_status *out_status);
 
 dyn_result dyn_nio_create_udp(const char *name, uint16_t local_port,
                               const char *remote_host, uint16_t remote_port,

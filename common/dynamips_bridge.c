@@ -31,6 +31,24 @@ int dyn_core_vm_stop(dyn_core_vm *vm) {
   return (vm_stop_instance((vm_instance_t *)vm));
 }
 
+int dyn_core_vm_get_status(const dyn_core_vm *vm, dyn_vm_status *out_status) {
+  switch (((const vm_instance_t *)vm)->status) {
+  case VM_STATUS_HALTED:
+    *out_status = DYN_VM_HALTED;
+    return (0);
+  case VM_STATUS_SHUTDOWN:
+    *out_status = DYN_VM_SHUTDOWN;
+    return (0);
+  case VM_STATUS_RUNNING:
+    *out_status = DYN_VM_RUNNING;
+    return (0);
+  case VM_STATUS_SUSPENDED:
+    *out_status = DYN_VM_SUSPENDED;
+    return (0);
+  }
+  return (-1);
+}
+
 dyn_core_nio *dyn_core_nio_create_udp(const char *name, uint16_t local_port,
                                       const char *remote_host,
                                       uint16_t remote_port) {
