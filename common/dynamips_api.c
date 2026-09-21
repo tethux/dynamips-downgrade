@@ -1,7 +1,5 @@
 #include <dynamips/dynamips.h>
 
-const char *dyn_hello(void) { return ("hello from dynamips"); }
-
 const char *dyn_result_message(dyn_result result) {
   switch (result) {
   case DYN_OK:

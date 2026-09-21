@@ -22,7 +22,6 @@ typedef enum dyn_result {
 typedef struct dyn_vm dyn_vm;
 typedef struct dyn_nio dyn_nio;
 
-const char *dyn_hello(void);
 const char *dyn_result_message(dyn_result result);
 
 dyn_result dyn_runtime_init(int argc, char *argv[]);

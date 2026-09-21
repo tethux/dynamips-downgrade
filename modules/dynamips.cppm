@@ -1,5 +1,4 @@
-#ifndef DYNAMIPS_PUBLIC_DYNAMIPS_HPP
-#define DYNAMIPS_PUBLIC_DYNAMIPS_HPP
+module;
 
 #include <cstdint>
 #include <expected>
@@ -7,7 +6,9 @@
 
 #include <dynamips/dynamips.h>
 
-namespace dynamips {
+export module dynamips;
+
+export namespace dynamips {
 
 enum class error : int {
   invalid_argument = DYN_ERR_INVALID_ARGUMENT,
@@ -150,5 +151,3 @@ private:
 };
 
 } // namespace dynamips
-
-#endif

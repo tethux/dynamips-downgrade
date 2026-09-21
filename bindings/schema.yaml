@@ -8,6 +8,8 @@ conventions:
     outputs: cleared_on_error
   cpp:
     standard: c++23
+    interface: module
+    module: dynamips
     result: std::expected
     handles: move_only_raii
   go:

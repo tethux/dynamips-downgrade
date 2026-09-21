@@ -90,12 +90,19 @@ mise run build
 ```
 
 The default build produces `dynamips`, `dynamips-core`, `dynamips-bindings`,
-`dynamips-hello`, and `nvram_export`.
+and `nvram_export`. The C++ binding is the C++23 module `dynamips`, imported
+with `import dynamips;`; it does not expose a public C++ header.
 
 Run the Go binding test, which builds the native debug libraries first:
 
 ```
 mise run test
+```
+
+Run the Go example against the native debug libraries:
+
+```
+mise run run:example
 ```
 
 Format and lint the Go binding separately:
