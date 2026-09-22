@@ -40,7 +40,7 @@ run = "xmake build -y dynamips-module-test && xmake run dynamips-module-test"
 [tasks."run:example"]
 description = "run the Go bindings example"
 depends = ["build:native"]
-run = "go run ./go/examples/basic"
+run = "go run ./go/examples/basic -ios \"${DYNAMIPS_IOS_IMAGE:?set DYNAMIPS_IOS_IMAGE to an extracted C7200 IOS image}\""
 
 [tasks.run]
 description = "run the Dynamips executable"
