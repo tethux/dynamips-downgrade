@@ -348,6 +348,8 @@ func nativeError(operation string, status C.dyn_result) error {
 		kind = errs.ErrUnsupported
 	case C.DYN_ERR_IO:
 		kind = errs.ErrIO
+	case C.DYN_ERR_INVALID_STATE:
+		kind = errs.ErrInvalidState
 	default:
 		kind = errs.ErrInternal
 	}

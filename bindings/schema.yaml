@@ -81,6 +81,17 @@ types:
     c_type: dyn_nio_stats
     cpp_type: dynamips::nio_stats
     fields: [packets_in, packets_out, bytes_in, bytes_out]
+  filter_direction:
+    kind: enum
+    c_type: dyn_filter_direction
+    cpp_type: dynamips::filter_direction
+    values: [rx, tx, both]
+  string_slice:
+    kind: slice
+    c_type: "const char *const[]"
+    cpp_type: "std::span<const std::string_view>"
+    element: string
+    ownership: borrowed
   bytes:
     kind: buffer
     c_type: dyn_bytes
@@ -107,6 +118,7 @@ errors:
   - binding_failed
   - unsupported
   - io
+  - invalid_state
 
 operations:
   - module: runtime
@@ -286,6 +298,22 @@ operations:
     source:
       cli: common/hv_nio.c:cmd_create_udp_auto
       core: [netio_desc_create_udp_auto, netio_udp_auto_get_local_port]
+
+  - module: nio
+    operation: setup_filter
+    c_name: dyn_nio_setup_filter
+    cpp_name: dynamips::nio::setup_filter
+    go_name: dynamips.NIO.SetupFilter
+    args:
+      - {name: nio, type: "handle<nio>", ownership: borrowed}
+      - {name: direction, type: filter_direction}
+      - {name: options, type: string_slice}
+    returns: {type: void}
+    errors: [invalid_argument, not_initialized, out_of_memory, invalid_state, internal]
+    threading: {requires_runtime: true, blocking: false}
+    source:
+      cli: common/hv_nio.c:cmd_setup_filter
+      core: [netio_filter_setup]
 
   - module: eth_switch
     operation: create

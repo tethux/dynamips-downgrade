@@ -3,6 +3,9 @@
 
 #include <new>
 #include <cstdlib>
+#include <climits>
+#include <string>
+#include <vector>
 
 #include "dynamips_bridge.h"
 
@@ -231,6 +234,41 @@ cfn dyn_nio_get_stats(const dyn_nio *nio, dyn_nio_stats *out_stats)
       return status;
     dyn_core_nio_get_stats(nio->value, out_stats);
     return DYN_OK;
+  } catch (...) {
+    return DYN_ERR_INTERNAL;
+  }
+}
+
+cfn dyn_nio_setup_filter(dyn_nio *nio, dyn_filter_direction direction,
+                         size_t option_count, const char *const options[])
+    -> dyn_result {
+  try {
+    if (nio == nullptr || nio->value == nullptr ||
+        (direction != DYN_FILTER_RX && direction != DYN_FILTER_TX &&
+         direction != DYN_FILTER_BOTH) ||
+        option_count > INT_MAX || (option_count != 0 && options == nullptr))
+      return DYN_ERR_INVALID_ARGUMENT;
+    for (size_t i = 0; i < option_count; ++i)
+      if (options[i] == nullptr)
+        return DYN_ERR_INVALID_ARGUMENT;
+    if (const let status = require_runtime(); status != DYN_OK)
+      return status;
+
+    std::vector<std::string> owned;
+    owned.reserve(option_count);
+    for (size_t i = 0; i < option_count; ++i)
+      owned.emplace_back(options[i]);
+    std::vector<char *> argv;
+    argv.reserve(option_count);
+    for (auto &option : owned)
+      argv.push_back(option.data());
+    return dyn_core_nio_setup_filter(nio->value, direction,
+                                     static_cast<int>(option_count),
+                                     argv.data()) == 0
+               ? DYN_OK
+               : DYN_ERR_INVALID_STATE;
+  } catch (const std::bad_alloc &) {
+    return DYN_ERR_OUT_OF_MEMORY;
   } catch (...) {
     return DYN_ERR_INTERNAL;
   }

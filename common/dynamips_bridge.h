@@ -36,6 +36,8 @@ int dyn_core_nio_udp_auto_local_port(const dyn_core_nio *nio);
 void dyn_core_nio_release(dyn_core_nio *nio);
 int dyn_core_nio_delete(const char *name);
 void dyn_core_nio_get_stats(const dyn_core_nio *nio, dyn_nio_stats *out_stats);
+int dyn_core_nio_setup_filter(dyn_core_nio *nio, int direction,
+                              int option_count, char *options[]);
 
 dyn_core_eth_switch *dyn_core_eth_switch_create(const char *name);
 void dyn_core_eth_switch_release(dyn_core_eth_switch *sw);

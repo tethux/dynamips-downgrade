@@ -21,6 +21,7 @@ enum class error : int {
   binding_failed = DYN_ERR_BINDING_FAILED,
   unsupported = DYN_ERR_UNSUPPORTED,
   io = DYN_ERR_IO,
+  invalid_state = DYN_ERR_INVALID_STATE,
 };
 
 template <typename T> using result = std::expected<T, error>;

@@ -26,6 +26,8 @@ const char *dyn_result_message(dyn_result result) {
     return ("unsupported");
   case DYN_ERR_IO:
     return ("I/O error");
+  case DYN_ERR_INVALID_STATE:
+    return ("invalid state");
   }
 
   return ("unknown error");

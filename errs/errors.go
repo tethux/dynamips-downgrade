@@ -23,6 +23,8 @@ var (
 	ErrUnsupported = errors.New("unsupported")
 	// ErrIO reports failure to read or write native data.
 	ErrIO = errors.New("I/O error")
+	// ErrInvalidState reports an operation unavailable in the object's current state.
+	ErrInvalidState = errors.New("invalid state")
 	// ErrInUse reports a runtime with live VM or NIO references.
 	ErrInUse = errors.New("runtime still has open objects")
 	// ErrInternal reports an unexpected native failure.

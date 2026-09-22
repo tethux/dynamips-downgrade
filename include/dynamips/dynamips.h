@@ -21,6 +21,7 @@ typedef enum dyn_result {
   DYN_ERR_BINDING_FAILED = -9,
   DYN_ERR_UNSUPPORTED = -10,
   DYN_ERR_IO = -11,
+  DYN_ERR_INVALID_STATE = -12,
 } dyn_result;
 
 typedef struct dyn_vm dyn_vm;
@@ -45,6 +46,12 @@ typedef struct dyn_bytes {
   uint8_t *data;
   size_t size;
 } dyn_bytes;
+
+typedef enum dyn_filter_direction {
+  DYN_FILTER_RX = 0,
+  DYN_FILTER_TX = 1,
+  DYN_FILTER_BOTH = 2,
+} dyn_filter_direction;
 
 void dyn_bytes_release(dyn_bytes *bytes);
 
@@ -74,6 +81,9 @@ dyn_result dyn_nio_create_udp_auto(const char *name, const char *local_addr,
                                    dyn_nio **out_nio, uint16_t *out_local_port);
 void dyn_nio_release(dyn_nio *nio);
 dyn_result dyn_nio_get_stats(const dyn_nio *nio, dyn_nio_stats *out_stats);
+dyn_result dyn_nio_setup_filter(dyn_nio *nio, dyn_filter_direction direction,
+                                size_t option_count,
+                                const char *const options[]);
 
 dyn_result dyn_eth_switch_create(const char *name, dyn_eth_switch **out_switch);
 void dyn_eth_switch_release(dyn_eth_switch *sw);

@@ -2,6 +2,7 @@ module;
 
 #include <cstdint>
 #include <string_view>
+#include <span>
 
 #include <dynamips/dynamips.h>
 
@@ -18,6 +19,12 @@ struct nio_stats {
 };
 
 struct udp_auto_result;
+
+enum class filter_direction : int {
+  rx = DYN_FILTER_RX,
+  tx = DYN_FILTER_TX,
+  both = DYN_FILTER_BOTH,
+};
 
 class nio final {
 public:
@@ -44,6 +51,9 @@ public:
   ~nio() { reset(); }
 
   [[nodiscard]] result<nio_stats> stats() const noexcept;
+  [[nodiscard]] result<void>
+  setup_filter(filter_direction direction,
+               std::span<const std::string_view> options) noexcept;
 
 private:
   friend class vm;

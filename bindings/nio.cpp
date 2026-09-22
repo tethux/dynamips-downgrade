@@ -6,8 +6,10 @@ module;
 #include <cstdint>
 #include <expected>
 #include <new>
+#include <span>
 #include <string>
 #include <string_view>
+#include <vector>
 
 module dynamips;
 
@@ -62,6 +64,34 @@ fn nio::stats() const noexcept -> result<nio_stats> {
     return std::unexpected(to_error(status));
   return nio_stats{value.packets_in, value.packets_out, value.bytes_in,
                    value.bytes_out};
+}
+
+fn nio::setup_filter(filter_direction direction,
+                     std::span<const std::string_view> options) noexcept
+    -> result<void> {
+  try {
+    std::vector<std::string> owned;
+    owned.reserve(options.size());
+    for (const auto option : options) {
+      if (option.find('\0') != std::string_view::npos)
+        return std::unexpected(error::invalid_argument);
+      owned.emplace_back(option);
+    }
+    std::vector<const char *> argv;
+    argv.reserve(owned.size());
+    for (const auto &option : owned)
+      argv.push_back(option.c_str());
+    const let status = dyn_nio_setup_filter(
+        handle_, static_cast<dyn_filter_direction>(direction), argv.size(),
+        argv.data());
+    if (status != DYN_OK)
+      return std::unexpected(to_error(status));
+    return {};
+  } catch (const std::bad_alloc &) {
+    return std::unexpected(error::out_of_memory);
+  } catch (...) {
+    return std::unexpected(error::internal);
+  }
 }
 
 } // namespace dynamips

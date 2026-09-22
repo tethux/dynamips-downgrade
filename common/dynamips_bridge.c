@@ -5,6 +5,7 @@
 #include "eth_switch.h"
 #include "vm.h"
 #include "net_io.h"
+#include "net_io_filter.h"
 
 dyn_core_vm *dyn_core_vm_create(const char *name, int32_t instance_id,
                                 const char *platform) {
@@ -115,6 +116,12 @@ void dyn_core_nio_get_stats(const dyn_core_nio *value,
   out_stats->packets_out = nio->stats_pkts_out;
   out_stats->bytes_in = nio->stats_bytes_in;
   out_stats->bytes_out = nio->stats_bytes_out;
+}
+
+int dyn_core_nio_setup_filter(dyn_core_nio *nio, int direction,
+                              int option_count, char *options[]) {
+  return netio_filter_setup((netio_desc_t *)nio, direction, option_count,
+                            options);
 }
 
 dyn_core_eth_switch *dyn_core_eth_switch_create(const char *name) {
