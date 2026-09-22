@@ -1,0 +1,134 @@
+schema_version: 1
+
+scope_classes:
+  required: "Needed by Tethux orchestration and assigned for binding."
+  deferred: "Potentially useful later; no new binding work now."
+  legacy_only: "Text hypervisor support that disappears with that server."
+
+legacy_only_families:
+  - store/*
+  - hv_vm_debug/*
+  - platform_list_commands
+  - atm_switch/*
+  - atm_bridge/*
+  - frame_relay_switch/*
+
+conventions:
+  c_abi:
+    result: dyn_result
+    handles: opaque
+    strings: borrowed_utf8_nul_terminated
+    outputs: cleared_on_error
+    buffers: owned_native_buffer
+  cpp:
+    standard: c++23
+    interface: module
+    module: dynamips
+    result: std::expected
+    handles: move_only_raii
+  go:
+    standard: "1.26"
+    result: error
+    handles: explicit_close
+  lifetime:
+    runtime: process_global
+    handles_must_be_released_before: runtime.shutdown
+  threading:
+    policy: externally_serialized
+
+types:
+  void:
+    kind: unit
+  int:
+    kind: scalar
+    c_type: int
+    cpp_type: int
+  int32:
+    kind: scalar
+    c_type: int32_t
+    cpp_type: std::int32_t
+  argv:
+    kind: slice
+    c_type: "char *[]"
+    cpp_type: "char *[]"
+    element: string
+    ownership: borrowed
+  runtime:
+    kind: context
+    ownership: unique
+  vm:
+    kind: handle
+    c_type: dyn_vm
+    ownership: registry_reference
+    release: dyn_vm_release
+  nio:
+    kind: handle
+    c_type: dyn_nio
+    ownership: registry_reference
+    release: dyn_nio_release
+  eth_switch:
+    kind: handle
+    c_type: dyn_eth_switch
+    ownership: registry_reference
+    release: dyn_eth_switch_release
+  string:
+    kind: scalar
+    c_type: const char *
+    cpp_type: std::string_view
+    ownership: borrowed
+  port:
+    kind: scalar
+    c_type: uint16_t
+    cpp_type: std::uint16_t
+  vm_status:
+    kind: enum
+    c_type: dyn_vm_status
+    cpp_type: dynamips::vm_status
+    values: [halted, shutdown, running, suspended]
+  uint32:
+    kind: scalar
+    c_type: uint32_t
+    cpp_type: std::uint32_t
+  nio_stats:
+    kind: struct
+    c_type: dyn_nio_stats
+    cpp_type: dynamips::nio_stats
+    fields: [packets_in, packets_out, bytes_in, bytes_out]
+  filter_direction:
+    kind: enum
+    c_type: dyn_filter_direction
+    cpp_type: dynamips::filter_direction
+    values: [rx, tx, both]
+  string_slice:
+    kind: slice
+    c_type: "const char *const[]"
+    cpp_type: "std::span<const std::string_view>"
+    element: string
+    ownership: borrowed
+  bytes:
+    kind: buffer
+    c_type: dyn_bytes
+    ownership: owned
+    release: dyn_bytes_release
+  vm_config_data:
+    kind: struct
+    cpp_type: dynamips::vm_config_data
+    fields: [startup, private_config]
+  udp_auto_result:
+    kind: struct
+    cpp_type: dynamips::udp_auto_result
+    fields: [endpoint, local_port]
+
+errors:
+  - invalid_argument
+  - not_initialized
+  - already_initialized
+  - out_of_memory
+  - create_failed
+  - start_failed
+  - stop_failed
+  - internal
+  - binding_failed
+  - unsupported
+  - io
+  - invalid_state

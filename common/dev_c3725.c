@@ -730,8 +730,5 @@ static vm_platform_t c3725_platform = {
 
 /* Register the c3725 platform */
 int c3725_platform_register(void) {
-  if (vm_platform_register(&c3725_platform) == -1)
-    return (-1);
-
-  return (hypervisor_c3725_init(&c3725_platform));
+  return (vm_platform_register(&c3725_platform));
 }

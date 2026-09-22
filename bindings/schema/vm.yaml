@@ -1,0 +1,131 @@
+schema_version: 1
+
+scope:
+  required:
+    [create, delete, start, stop, suspend, resume, status, set_ios, set_ram,
+     set_nvram, set_sparse_mem, set_conf_reg, set_idle_pc, set_con_tcp_port,
+     push_config, extract_config, slot_add_binding, slot_remove_binding,
+     slot_add_nio_binding, slot_remove_nio_binding]
+  deferred: [set_config, get_idle_pc_prop, set_disk0, set_disk1]
+  legacy_only:
+    [rename, list, list_con_ports, slot_bindings, slot_nio_bindings,
+     set_debug_level, cpu_info, cpu_usage, show_timer_drift,
+     show_idle_pc_prop, show_hardware, send_con_msg, send_aux_msg,
+     set_aux_tcp_port, clean_delete, oir_start, oir_stop, ghost_support]
+
+unresolved:
+  delete: "Must consume the public handle on success; resolve registry references first."
+  console: "Resolve console ownership and event semantics before adding callbacks."
+
+operations:
+  - module: vm
+    operation: create
+    classification: required
+    c_name: dyn_vm_create
+    cpp_name: dynamips::vm::create
+    go_name: dynamips.Runtime.CreateVM
+    args:
+      - {name: name, type: string}
+      - {name: instance_id, type: int32}
+      - {name: platform, type: string}
+    returns: {type: "handle<vm>", ownership: registry_reference}
+    errors:
+      [invalid_argument, not_initialized, out_of_memory, create_failed, internal]
+    threading: {requires_runtime: true, blocking: false}
+    source:
+      cli: stable/hv_vm.c:cmd_create
+      core: [vm_create_instance]
+
+  - module: vm
+    operation: start
+    classification: required
+    c_name: dyn_vm_start
+    cpp_name: dynamips::vm::start
+    go_name: dynamips.VM.Start
+    args:
+      - {name: vm, type: "handle<vm>", ownership: borrowed}
+    returns: {type: void}
+    errors: [invalid_argument, not_initialized, start_failed, internal]
+    threading: {requires_runtime: true, blocking: false}
+    source:
+      cli: stable/hv_vm.c:cmd_start
+      core: [vm_init_instance]
+
+  - module: vm
+    operation: stop
+    classification: required
+    c_name: dyn_vm_stop
+    cpp_name: dynamips::vm::stop
+    go_name: dynamips.VM.Stop
+    args:
+      - {name: vm, type: "handle<vm>", ownership: borrowed}
+    returns: {type: void}
+    errors: [invalid_argument, not_initialized, stop_failed, internal]
+    threading: {requires_runtime: true, blocking: true}
+    source:
+      cli: stable/hv_vm.c:cmd_stop
+      core: [vm_stop_instance]
+
+  - module: vm
+    operation: status
+    classification: required
+    c_name: dyn_vm_get_status
+    cpp_name: dynamips::vm::status
+    go_name: dynamips.VM.Status
+    args:
+      - {name: vm, type: "handle<vm>", ownership: borrowed}
+    returns: {type: vm_status}
+    errors: [invalid_argument, not_initialized, internal]
+    threading: {requires_runtime: true, blocking: false}
+    source:
+      cli: stable/hv_vm.c:cmd_get_status
+      core: [vm_instance_t.status]
+
+  - module: vm
+    operation: set_ram
+    classification: required
+    c_name: dyn_vm_set_ram
+    cpp_name: dynamips::vm::set_ram
+    go_name: dynamips.VM.SetRAM
+    args:
+      - {name: vm, type: "handle<vm>", ownership: borrowed}
+      - {name: megabytes, type: uint32}
+    returns: {type: void}
+    errors: [invalid_argument, not_initialized, internal]
+    threading: {requires_runtime: true, blocking: false}
+    source:
+      cli: stable/hv_vm.c:cmd_set_ram
+      core: [vm_instance_t.ram_size, c7200_t.npe400_ram_size]
+
+  - module: vm
+    operation: attach_nio
+    classification: required
+    c_name: dyn_vm_attach_nio
+    cpp_name: dynamips::vm::attach_nio
+    go_name: dynamips.VM.AttachNIO
+    args:
+      - {name: vm, type: "handle<vm>", ownership: borrowed}
+      - {name: slot, type: uint32}
+      - {name: port, type: uint32}
+      - {name: nio, type: "handle<nio>", ownership: borrowed}
+    returns: {type: void}
+    errors: [invalid_argument, not_initialized, binding_failed, internal]
+    threading: {requires_runtime: true, blocking: false}
+    source:
+      cli: stable/hv_vm.c:cmd_slot_add_nio_binding
+      core: [vm_slot_add_nio_binding]
+
+  - module: vm
+    operation: extract_config
+    classification: required
+    c_name: dyn_vm_extract_config
+    cpp_name: dynamips::vm::extract_config
+    go_name: dynamips.VM.ExtractConfig
+    args:
+      - {name: vm, type: "handle<vm>", ownership: borrowed}
+    returns: {type: vm_config_data, ownership: copied_from_owned_native_buffers}
+    errors: [invalid_argument, not_initialized, unsupported, io, out_of_memory, internal]
+    threading: {requires_runtime: true, blocking: true}
+    source:
+      cli: stable/hv_vm.c:cmd_extract_config
+      core: [vm_platform_t.nvram_extract_config]

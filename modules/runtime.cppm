@@ -11,12 +11,8 @@ export namespace dynamips {
 
 class runtime final {
 public:
-  [[nodiscard]] static result<runtime> init(int argc, char *argv[]) noexcept {
-    const auto status = dyn_runtime_init(argc, argv);
-    if (status != DYN_OK)
-      return std::unexpected(to_error(status));
-    return runtime();
-  }
+  [[nodiscard]] static result<runtime> init(int argc, char *argv[]) noexcept;
+  [[nodiscard]] static result<runtime> init_embedded() noexcept;
 
   runtime(const runtime &) = delete;
   runtime &operator=(const runtime &) = delete;

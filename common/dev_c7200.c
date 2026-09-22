@@ -2167,8 +2167,5 @@ static vm_platform_t c7200_platform = {
 
 /* Register the c7200 platform */
 int c7200_platform_register(void) {
-  if (vm_platform_register(&c7200_platform) == -1)
-    return (-1);
-
-  return (hypervisor_c7200_init(&c7200_platform));
+  return (vm_platform_register(&c7200_platform));
 }

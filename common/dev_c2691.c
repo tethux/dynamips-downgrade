@@ -708,8 +708,5 @@ static vm_platform_t c2691_platform = {
 
 /* Register the c2691 platform */
 int c2691_platform_register(void) {
-  if (vm_platform_register(&c2691_platform) == -1)
-    return (-1);
-
-  return (hypervisor_c2691_init(&c2691_platform));
+  return (vm_platform_register(&c2691_platform));
 }

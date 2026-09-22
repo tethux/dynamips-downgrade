@@ -774,8 +774,5 @@ static vm_platform_t c1700_platform = {
 
 /* Register the c1700 platform */
 int c1700_platform_register(void) {
-  if (vm_platform_register(&c1700_platform) == -1)
-    return (-1);
-
-  return (hypervisor_c1700_init(&c1700_platform));
+  return (vm_platform_register(&c1700_platform));
 }

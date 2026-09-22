@@ -23,6 +23,7 @@ extern char *hypervisor_ip_address;
 int main(int argc, char *argv[]) {
   vm_instance_t *vm;
 
+  dynamips_set_hypervisor_stop_handler(hypervisor_stopsig);
   if (dyn_runtime_init(argc, argv) != DYN_OK)
     return (EXIT_FAILURE);
 

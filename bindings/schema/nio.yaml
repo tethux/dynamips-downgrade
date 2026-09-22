@@ -1,0 +1,81 @@
+schema_version: 1
+
+scope:
+  required:
+    [create_udp, create_udp_auto, connect_udp_auto, create_tap, stats,
+     setup_filter, delete]
+  deferred: [create_unix, create_vde, create_fifo, create_gen_eth, create_linux_eth, create_null]
+  legacy_only: [rename, list, set_debug]
+
+unresolved:
+  delete: "Resolve registry references and attached endpoint ownership."
+
+operations:
+  - module: nio
+    operation: create_udp
+    classification: required
+    c_name: dyn_nio_create_udp
+    cpp_name: dynamips::nio::create_udp
+    go_name: dynamips.Runtime.CreateUDP
+    args:
+      - {name: name, type: string}
+      - {name: local_port, type: port}
+      - {name: remote_host, type: string}
+      - {name: remote_port, type: port}
+    returns: {type: "handle<nio>", ownership: registry_reference}
+    errors:
+      [invalid_argument, not_initialized, out_of_memory, create_failed, internal]
+    threading: {requires_runtime: true, blocking: false}
+    source:
+      cli: common/hv_nio.c:cmd_create_udp
+      core: [netio_desc_create_udp]
+
+  - module: nio
+    operation: stats
+    classification: required
+    c_name: dyn_nio_get_stats
+    cpp_name: dynamips::nio::stats
+    go_name: dynamips.NIO.Stats
+    args:
+      - {name: nio, type: "handle<nio>", ownership: borrowed}
+    returns: {type: nio_stats}
+    errors: [invalid_argument, not_initialized, internal]
+    threading: {requires_runtime: true, blocking: false}
+    source:
+      cli: common/hv_nio.c:cmd_get_stats
+      core: [netio_desc_t.stats_pkts_in, netio_desc_t.stats_pkts_out, netio_desc_t.stats_bytes_in, netio_desc_t.stats_bytes_out]
+
+  - module: nio
+    operation: create_udp_auto
+    classification: required
+    c_name: dyn_nio_create_udp_auto
+    cpp_name: dynamips::nio::create_udp_auto
+    go_name: dynamips.Runtime.CreateUDPAuto
+    args:
+      - {name: name, type: string}
+      - {name: local_addr, type: string}
+      - {name: port_start, type: port}
+      - {name: port_end, type: port}
+    returns: {type: udp_auto_result, ownership: registry_reference}
+    errors: [invalid_argument, not_initialized, out_of_memory, create_failed, internal]
+    threading: {requires_runtime: true, blocking: false}
+    source:
+      cli: common/hv_nio.c:cmd_create_udp_auto
+      core: [netio_desc_create_udp_auto, netio_udp_auto_get_local_port]
+
+  - module: nio
+    operation: setup_filter
+    classification: required
+    c_name: dyn_nio_setup_filter
+    cpp_name: dynamips::nio::setup_filter
+    go_name: dynamips.NIO.SetupFilter
+    args:
+      - {name: nio, type: "handle<nio>", ownership: borrowed}
+      - {name: direction, type: filter_direction}
+      - {name: options, type: string_slice}
+    returns: {type: void}
+    errors: [invalid_argument, not_initialized, out_of_memory, invalid_state, internal]
+    threading: {requires_runtime: true, blocking: false}
+    source:
+      cli: common/hv_nio.c:cmd_setup_filter
+      core: [netio_filter_setup]

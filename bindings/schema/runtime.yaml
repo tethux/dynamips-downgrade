@@ -1,0 +1,45 @@
+schema_version: 1
+
+scope:
+  required: [init_embedded, shutdown]
+  deferred: []
+  legacy_only: [init_cli, hypervisor_commands]
+
+operations:
+  - module: runtime
+    operation: init_cli
+    classification: legacy_only
+    c_name: dyn_runtime_init
+    cpp_name: dynamips::runtime::init
+    go_name: dynamips.New
+    args:
+      - {name: argc, type: int}
+      - {name: argv, type: argv}
+    returns: {type: "handle<runtime>", ownership: unique}
+    errors: [invalid_argument, already_initialized, start_failed]
+    threading: {requires_runtime: false, blocking: false}
+    source: {core: [dyn_runtime_init]}
+
+  - module: runtime
+    operation: init_embedded
+    classification: required
+    c_name: dyn_runtime_init_embedded
+    cpp_name: dynamips::runtime::init_embedded
+    go_name: dynamips.New
+    args: []
+    returns: {type: "handle<runtime>", ownership: unique}
+    errors: [already_initialized, start_failed]
+    threading: {requires_runtime: false, blocking: false}
+    source: {core: [dyn_runtime_init_embedded]}
+
+  - module: runtime
+    operation: shutdown
+    classification: required
+    c_name: dyn_runtime_shutdown
+    cpp_name: dynamips::runtime::~runtime
+    go_name: dynamips.Runtime.Close
+    args: []
+    returns: {type: void}
+    errors: []
+    threading: {requires_runtime: true, blocking: true}
+    source: {core: [dyn_runtime_shutdown]}

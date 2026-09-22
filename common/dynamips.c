@@ -24,10 +24,6 @@
 #include "dynamips.h"
 #include "vm.h"
 
-#ifdef USE_UNSTABLE
-#include "tcb.h"
-#endif
-
 #include "mips64_exec.h"
 #include "mips64_jit.h"
 #include "ppc32_exec.h"
@@ -41,13 +37,11 @@
 #include "dev_c1700.h"
 #include "dev_c6msfc1.h"
 #include "dev_c6sup1.h"
-#include "ppc32_vmtest.h"
 #include "dev_vtty.h"
 #include "ptask.h"
 #include "timer.h"
 #include "plugin.h"
 #include "registry.h"
-#include "hypervisor.h"
 #include "net_io.h"
 #include "net_io_bridge.h"
 #include "net_io_filter.h"
@@ -95,6 +89,12 @@ char *binding_addr = NULL;
 /* Console (vtty tcp) binding address (NULL means any or 0.0.0.0) */
 char *console_binding_addr = NULL;
 
+static int (*hypervisor_stop_handler)(void) = NULL;
+
+void dynamips_set_hypervisor_stop_handler(int (*handler)(void)) {
+  hypervisor_stop_handler = handler;
+}
+
 /* Generic signal handler */
 void signal_gen_handler(int sig) {
   switch (sig) {
@@ -114,9 +114,10 @@ void signal_gen_handler(int sig) {
 
   case SIGINT:
     /* CTRL+C has been pressed */
-    if (hypervisor_mode)
-      hypervisor_stopsig();
-    else {
+    if (hypervisor_mode) {
+      if (hypervisor_stop_handler)
+        hypervisor_stop_handler();
+    } else {
       /* In theory, this shouldn't happen thanks to VTTY settings */
       vm_instance_t *vm;
 
@@ -856,19 +857,11 @@ void dynamips_reset(void) {
 
 /* Default platforms */
 static int (*platform_register[])(void) = {
-    c7200_platform_register,
-    c3600_platform_register,
-    c3725_platform_register,
-    c3745_platform_register,
-    c2691_platform_register,
-    c2600_platform_register,
-    c1700_platform_register,
-    c6sup1_platform_register,
-    c6msfc1_platform_register,
-#ifdef USE_UNSTABLE
-    ppc32_vmtest_platform_register,
-#endif
-    NULL,
+    c7200_platform_register,   c3600_platform_register,
+    c3725_platform_register,   c3745_platform_register,
+    c2691_platform_register,   c2600_platform_register,
+    c1700_platform_register,   c6sup1_platform_register,
+    c6msfc1_platform_register, NULL,
 };
 
 /* Register default platforms */
@@ -896,27 +889,28 @@ static void destroy_cmd_line_vars(void) {
 }
 
 static int runtime_initialized = 0;
+static int runtime_init_attempted = 0;
 
 int dyn_runtime_is_initialized(void) { return (runtime_initialized); }
 
-dyn_result dyn_runtime_init(int argc, char *argv[]) {
-  if (runtime_initialized)
+static dyn_result runtime_init(int embedded, int argc, char *argv[]) {
+  if (runtime_init_attempted)
     return (DYN_ERR_ALREADY_INITIALIZED);
 
-  if (argc < 1 || argv == NULL || argv[0] == NULL)
+  if (!embedded && (argc < 1 || argv == NULL || argv[0] == NULL))
     return (DYN_ERR_INVALID_ARGUMENT);
+
+  runtime_init_attempted = 1;
+
+  if (embedded)
+    hypervisor_mode = 0;
 
 #ifdef PROFILE
   atexit(profiler_savestat);
 #endif
 
-#ifdef USE_UNSTABLE
-  printf("Cisco Router Simulation Platform (version %s/%s unstable)\n",
-         sw_version, os_name);
-#else
   printf("Cisco Router Simulation Platform (version %s/%s stable)\n",
          sw_version, os_name);
-#endif
 
   printf("Copyright (c) 2005-2011 Christophe Fillot.\n");
   printf("Build date: %s %s\n\n", __DATE__, __TIME__);
@@ -945,10 +939,11 @@ dyn_result dyn_runtime_init(int argc, char *argv[]) {
   /* Initialize VTTY code */
   vtty_init();
 
-  /* Parse standard command line */
-  atexit(destroy_cmd_line_vars);
-  if (!run_hypervisor(argc, argv))
-    parse_std_cmd_line(argc, argv);
+  if (!embedded) {
+    atexit(destroy_cmd_line_vars);
+    if (!run_hypervisor(argc, argv))
+      parse_std_cmd_line(argc, argv);
+  }
 
   /* Create general log file */
   create_log_file();
@@ -968,6 +963,12 @@ dyn_result dyn_runtime_init(int argc, char *argv[]) {
   runtime_initialized = 1;
   return (DYN_OK);
 }
+
+dyn_result dyn_runtime_init(int argc, char *argv[]) {
+  return runtime_init(0, argc, argv);
+}
+
+dyn_result dyn_runtime_init_embedded(void) { return runtime_init(1, 0, NULL); }
 
 void dyn_runtime_shutdown(void) {
   if (!runtime_initialized)

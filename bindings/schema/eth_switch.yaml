@@ -1,0 +1,41 @@
+schema_version: 1
+
+scope:
+  required:
+    [create, add_nio, remove_nio, set_access_port, set_dot1q_port, set_qinq_port]
+  deferred: []
+  legacy_only: [rename, list, show_mac_addr_table]
+
+decision: "Defer new switch binding work until Tethux needs the built-in switch."
+
+operations:
+  - module: eth_switch
+    operation: create
+    classification: required
+    c_name: dyn_eth_switch_create
+    cpp_name: dynamips::ethernet_switch::create
+    go_name: dynamips.Runtime.CreateEthernetSwitch
+    args:
+      - {name: name, type: string}
+    returns: {type: "handle<eth_switch>", ownership: registry_reference}
+    errors: [invalid_argument, not_initialized, out_of_memory, create_failed, internal]
+    threading: {requires_runtime: true, blocking: false}
+    source:
+      cli: common/hv_ethsw.c:cmd_create
+      core: [ethsw_create]
+
+  - module: eth_switch
+    operation: add_nio
+    classification: required
+    c_name: dyn_eth_switch_add_nio
+    cpp_name: dynamips::ethernet_switch::add
+    go_name: dynamips.EthernetSwitch.AddNIO
+    args:
+      - {name: switch, type: "handle<eth_switch>", ownership: borrowed}
+      - {name: nio, type: "handle<nio>", ownership: borrowed}
+    returns: {type: void}
+    errors: [invalid_argument, not_initialized, binding_failed, internal]
+    threading: {requires_runtime: true, blocking: false}
+    source:
+      cli: common/hv_ethsw.c:cmd_add_nio
+      core: [ethsw_add_netio]

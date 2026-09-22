@@ -975,8 +975,5 @@ static vm_platform_t c3600_platform = {
 
 /* Register the c3600 platform */
 int c3600_platform_register(void) {
-  if (vm_platform_register(&c3600_platform) == -1)
-    return (-1);
-
-  return (hypervisor_c3600_init(&c3600_platform));
+  return (vm_platform_register(&c3600_platform));
 }

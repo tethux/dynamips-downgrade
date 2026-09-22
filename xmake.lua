@@ -8,13 +8,6 @@ add_rules("plugin.compile_commands.autoupdate", {outputdir = "."})
 
 local default_jit_arch = os.arch() == "x86_64" and "amd64" or "nojit"
 
-option("dynamips_code")
-    set_default("stable")
-    set_values("stable", "unstable")
-    set_showmenu(true)
-    set_description("Select the stable or unstable emulator implementation")
-option_end()
-
 option("dynamips_arch")
     set_default(default_jit_arch)
     set_values("amd64", "x86", "ppc32", "nojit")
@@ -34,27 +27,12 @@ option("enable_linux_eth")
     set_description("Enable Linux raw-socket Ethernet")
 option_end()
 
-option("build_nvram_export")
-    set_default(true)
-    set_showmenu(true)
-option_end()
-
-option("build_udp_send")
-    set_default(false)
-    set_showmenu(true)
-option_end()
-
-option("build_udp_recv")
-    set_default(false)
-    set_showmenu(true)
-option_end()
-
 add_requires("libelf")
 if has_config("enable_gen_eth") then
     add_requires("libpcap", {optional = true})
 end
 
-local code = get_config("dynamips_code") or "stable"
+local code = "stable"
 local jit_arch = get_config("dynamips_arch") or default_jit_arch
 local generated_dir = path.join("$(builddir)", "generated", code)
 
@@ -98,9 +76,6 @@ local function configure_dynamips_target(target_name)
         else
             add_syslinks("pthread", {public = true})
         end
-        if code == "unstable" then
-            add_defines("USE_UNSTABLE")
-        end
         if has_config("enable_linux_eth") and is_plat("linux") then
             add_defines("LINUX_ETH")
         end
@@ -133,14 +108,14 @@ configure_dynamips_target("dynamips-core")
     add_deps("rom2c")
     add_rules("dynamips.microcode")
     add_headerfiles("include/(dynamips/*.h)")
-    add_files("common/*.c|bin2c.c|dynamips_main.c|nvram_export.c|ppc32_nojit_trans.c|ppc32_ppc32_trans.c|profiler.c|rom2c.c|udp_recv.c|udp_send.c")
+    add_files("common/*.c|bin2c.c|dynamips_bridge_*.c|dynamips_main.c|hv_*.c|nvram_export.c|ppc32_nojit_trans.c|ppc32_ppc32_trans.c|profiler.c|rom2c.c|udp_recv.c|udp_send.c")
     if not (has_config("enable_linux_eth") and is_plat("linux")) then
         remove_files("common/linux_eth.c")
     end
     if not (has_config("enable_gen_eth") and has_package("libpcap")) then
         remove_files("common/gen_eth.c")
     end
-    add_files(code .. "/*.c|mips_mts.c|mips64_*_trans.c|ppc32_*_trans.c")
+    add_files(code .. "/*.c|hv_vm.c|hypervisor.c|mips_mts.c|mips64_*_trans.c|ppc32_*_trans.c")
     add_files(code .. "/mips64_microcode", code .. "/ppc32_microcode", {rule = "dynamips.microcode"})
     if jit_arch == "ppc32" then
         add_files(code .. "/mips64_ppc32_trans.c", "common/ppc32_ppc32_trans.c")
@@ -160,6 +135,13 @@ configure_dynamips_target("dynamips-bindings")
     add_headerfiles("include/(dynamips/*.h)")
     add_files("modules/*.cppm", {public = true})
     add_files("bindings/*.cpp")
+    add_files("common/dynamips_bridge_*.c")
+
+configure_dynamips_target("dynamips-legacy-hypervisor")
+    set_kind("static")
+    set_default(false)
+    add_deps("dynamips-core", {public = true})
+    add_files("common/hv_*.c", "stable/hv_vm.c", "stable/hypervisor.c")
 
 target("dynamips-module-test")
     set_default(false)
@@ -169,26 +151,8 @@ target("dynamips-module-test")
 
 configure_dynamips_target("dynamips")
     set_kind("binary")
-    add_deps("dynamips-core")
+    add_deps("dynamips-core", "dynamips-legacy-hypervisor")
     add_files("common/dynamips_main.c")
     add_installfiles("ChangeLog", "COPYING", "MAINTAINERS", "README.md", "README.hypervisor", "RELEASE-NOTES", "TODO", {prefixdir = "share/doc/dynamips"})
-    add_installfiles("man/dynamips.1", "man/nvram_export.1", {prefixdir = "share/man/man1"})
+    add_installfiles("man/dynamips.1", {prefixdir = "share/man/man1"})
     add_installfiles("man/hypervisor_mode.7", {prefixdir = "share/man/man7"})
-
-if has_config("build_nvram_export") then
-    configure_dynamips_target("nvram_export")
-        set_kind("binary")
-        add_files("common/fs_nvram.c", "common/nvram_export.c")
-end
-
-if has_config("build_udp_send") then
-    configure_dynamips_target("udp_send")
-        set_kind("binary")
-        add_files("common/crc.c", "common/net.c", "common/udp_send.c", "common/utils.c")
-end
-
-if has_config("build_udp_recv") then
-    configure_dynamips_target("udp_recv")
-        set_kind("binary")
-        add_files("common/crc.c", "common/net.c", "common/udp_recv.c", "common/utils.c")
-end

@@ -40,7 +40,7 @@ run = "xmake build -y dynamips-module-test && xmake run dynamips-module-test"
 [tasks."run:example"]
 description = "run the Go bindings example"
 depends = ["build:native"]
-run = "go run ./examples/basic"
+run = "go run ./go/examples/basic"
 
 [tasks.run]
 description = "run the Dynamips executable"
@@ -54,7 +54,7 @@ run = "xmake project -k compile_commands --lsp=clangd ."
 
 [tasks.format]
 description = "format C and C++ sources"
-run = "find bindings common stable unstable include modules -type f \\( -name '*.c' -o -name '*.h' -o -name '*.cpp' -o -name '*.cppm' \\) -print0 | xargs -0 clang-format -i"
+run = "find bindings common stable include modules -type f \\( -name '*.c' -o -name '*.h' -o -name '*.cpp' -o -name '*.cppm' \\) -print0 | xargs -0 clang-format -i"
 
 [tasks."fmt:go"]
 description = "format Go code"

@@ -81,4 +81,7 @@ extern char *console_binding_addr;
 /* Delete all objects */
 void dynamips_reset(void);
 
+/* Legacy executable's hypervisor SIGINT hook. */
+void dynamips_set_hypervisor_stop_handler(int (*handler)(void));
+
 #endif

@@ -531,6 +531,13 @@ int hypervisor_tcp_server(char *ip_addr, int tcp_port) {
 
   /* Initialize all hypervisor modules */
   hypervisor_init();
+  hypervisor_c7200_init(vm_platform_find("c7200"));
+  hypervisor_c3600_init(vm_platform_find("c3600"));
+  hypervisor_c3725_init(vm_platform_find("c3725"));
+  hypervisor_c3745_init(vm_platform_find("c3745"));
+  hypervisor_c2691_init(vm_platform_find("c2691"));
+  hypervisor_c2600_init(vm_platform_find("c2600"));
+  hypervisor_c1700_init(vm_platform_find("c1700"));
   hypervisor_nio_init();
   hypervisor_nio_bridge_init();
   hypervisor_frsw_init();

@@ -1,0 +1,14 @@
+schema_version: 1
+
+scope:
+  required: [c7200_set_npe, c7200_set_midplane, c7200_set_mac_addr]
+  deferred: [other_platform_configuration]
+  legacy_only:
+    [list, get_mac_addr, show_hardware, temp_sensor, power_supply, system_id,
+     atm_switch, atm_bridge, frame_relay_switch]
+
+unresolved:
+  c7200: "Use a checked platform cast before accessing C7200 state."
+
+operations:
+  []

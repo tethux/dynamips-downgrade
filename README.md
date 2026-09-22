@@ -137,8 +137,8 @@ return runtime.Close()
 Inspect the local API with:
 
 ```
-mise exec -- go doc github.com/tethux/dynamips-downgrade
-mise exec -- go doc github.com/tethux/dynamips-downgrade/errs
+mise exec -- go doc github.com/tethux/dynamips-downgrade/go
+mise exec -- go doc github.com/tethux/dynamips-downgrade/go/errs
 ```
 
 Select the unstable implementation or another JIT backend during configuration:
