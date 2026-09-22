@@ -9,11 +9,11 @@ golangci-lint = "2.10.1"
 
 [tasks.build]
 description = "build Dynamips"
-run = "xmake f -m release -y && xmake -y"
+run = "xmake f -m release -y && xmake -j \"${DYNAMIPS_BUILD_JOBS:-14}\" -y"
 
 [tasks.dev]
 description = "build Dynamips in debug mode"
-run = "xmake f -m debug -y && xmake -y"
+run = "xmake f -m debug -y && xmake -j \"${DYNAMIPS_BUILD_JOBS:-14}\" -y"
 
 [tasks.test]
 description = "run the Go binding tests"
@@ -21,12 +21,21 @@ depends = ["test:go"]
 
 [tasks."build:native"]
 description = "build the native library for Go"
-run = "xmake f -m debug -y && xmake build -y dynamips-bindings"
+run = "xmake f -m debug -y && xmake build -j \"${DYNAMIPS_BUILD_JOBS:-14}\" -y dynamips-bindings"
 
 [tasks."test:go"]
 description = "test the Go bindings"
 depends = ["test:native"]
 run = "go test ./..."
+
+[tasks."test:ios"]
+description = "boot a local C7200 IOS archive through embedded and legacy APIs"
+run = """
+test -n "${DYNAMIPS_IOS_ARCHIVE:-}" || { echo 'set DYNAMIPS_IOS_ARCHIVE to a local C7200 zip archive' >&2; exit 2; }
+xmake f -m debug -y
+xmake -j "${DYNAMIPS_BUILD_JOBS:-14}" -y
+go test . -run '^TestC7200IOSBootParity$' -count=1 -v -timeout=8m
+"""
 
 [tasks."lint:go"]
 description = "lint the Go bindings"
@@ -49,17 +58,12 @@ run = "clang-tidy -p . -checks='clang-analyzer-*,bugprone-*,-bugprone-macro-pare
 [tasks."test:native"]
 description = "test the C++ module"
 depends = ["build:native"]
-run = "xmake build -y dynamips-module-test && xmake run dynamips-module-test"
+run = "xmake build -j \"${DYNAMIPS_BUILD_JOBS:-14}\" -y dynamips-module-test && xmake run dynamips-module-test"
 
 [tasks."run:example"]
 description = "run the Go bindings example"
 depends = ["build:native"]
-run = "go run ./go/examples/basic -ios \"${DYNAMIPS_IOS_IMAGE:?set DYNAMIPS_IOS_IMAGE to an extracted C7200 IOS image}\""
-
-[tasks.run]
-description = "run the Dynamips executable"
-depends = ["build"]
-run = "xmake run dynamips"
+run = "go run ./examples/basic -ios \"${DYNAMIPS_IOS_IMAGE:-${DYNAMIPS_IOS_ARCHIVE:-$HOME/gns3Imgs/c7200-adventerprisek9-mz.124-24.T5.zip}}\""
 
 [tasks.compiledb]
 description = "generate clangd compile commands, including C++ modules"
