@@ -86,13 +86,10 @@ cfn dyn_nio_create_udp_auto(const char *name, const char *local_addr,
 }
 
 cfn dyn_nio_release(dyn_nio *nio) -> void {
-  try {
-    if (nio == nullptr)
-      return;
-    dyn_core_nio_release(nio->value);
-    delete nio;
-  } catch (...) {
-  }
+  if (nio == nullptr)
+    return;
+  dyn_core_nio_release(nio->value);
+  delete nio;
 }
 
 cfn dyn_nio_create_tap(const char *name, const char *device, dyn_nio **out_nio)

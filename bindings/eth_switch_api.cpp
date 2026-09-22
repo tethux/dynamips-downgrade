@@ -31,13 +31,10 @@ cfn dyn_eth_switch_create(const char *name, dyn_eth_switch **out_switch)
 }
 
 cfn dyn_eth_switch_release(dyn_eth_switch *sw) -> void {
-  try {
-    if (sw == nullptr)
-      return;
-    dyn_core_eth_switch_release(sw->value);
-    delete sw;
-  } catch (...) {
-  }
+  if (sw == nullptr)
+    return;
+  dyn_core_eth_switch_release(sw->value);
+  delete sw;
 }
 
 cfn dyn_eth_switch_add_nio(dyn_eth_switch *sw, dyn_nio *nio) -> dyn_result {

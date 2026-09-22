@@ -38,13 +38,10 @@ cfn dyn_vm_create(const char *name, int32_t instance_id, const char *platform,
 }
 
 cfn dyn_vm_release(dyn_vm *vm) -> void {
-  try {
-    if (vm == nullptr)
-      return;
-    dyn_core_vm_release(vm->value);
-    delete vm;
-  } catch (...) {
-  }
+  if (vm == nullptr)
+    return;
+  dyn_core_vm_release(vm->value);
+  delete vm;
 }
 
 cfn dyn_vm_delete(dyn_vm **vm) -> dyn_result {

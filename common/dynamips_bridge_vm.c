@@ -68,12 +68,12 @@ void dyn_core_vm_set_sparse_mem(dyn_core_vm *value, int enabled) {
   ((vm_instance_t *)value)->sparse_mem = enabled;
 }
 
-void dyn_core_vm_set_conf_reg(dyn_core_vm *value, uint32_t setting) {
-  ((vm_instance_t *)value)->conf_reg_setup = setting;
+void dyn_core_vm_set_conf_reg(dyn_core_vm *vm, uint32_t value) {
+  ((vm_instance_t *)vm)->conf_reg_setup = value;
 }
 
-void dyn_core_vm_set_idle_pc(dyn_core_vm *value, uint64_t address) {
-  ((vm_instance_t *)value)->idle_pc = address;
+void dyn_core_vm_set_idle_pc(dyn_core_vm *vm, uint64_t value) {
+  ((vm_instance_t *)vm)->idle_pc = value;
 }
 
 void dyn_core_vm_set_con_tcp_port(dyn_core_vm *value, uint16_t port) {

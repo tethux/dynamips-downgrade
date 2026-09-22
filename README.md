@@ -102,12 +102,19 @@ DYNAMIPS_IOS_IMAGE=/path/to/c7200-ios.bin mise run run:example
 
 See [the example](go/examples/basic/README.md) for console and RAM options.
 
-Format and lint the Go binding separately:
+Format and lint the bindings separately:
 
 ```
 mise run fmt:go
 mise run lint:go
+mise run lint:cpp
 ```
+
+The C++ lint task builds the native module, runs cppcheck on the C/C++
+embedding boundary, and runs clang-tidy on `bindings/*.cpp`. It requires
+`clang-tidy`; mise provides cppcheck. The C++23 module partitions are checked
+by the Clang build because xmake's compilation database does not currently
+include their module commands for clang-tidy.
 
 The Go package lives in `go/`. It initializes Dynamips without CLI options or
 a TCP hypervisor and exposes VM, NIO, slot, and C7200 configuration bindings:

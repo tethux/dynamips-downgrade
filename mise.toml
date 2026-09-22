@@ -1,6 +1,7 @@
 [tools]
 "github:xmake-io/xmake" = "latest"
 clang-format = "latest"
+"conda:cppcheck" = "2.20.1"
 go = "1.26.5"
 golangci-lint = "2.10.1"
 "go:golang.org/x/tools/cmd/goimports" = "0.42.0"
@@ -31,6 +32,19 @@ run = "go test ./..."
 description = "lint the Go bindings"
 depends = ["build:native"]
 run = "golangci-lint run ./..."
+
+[tasks."lint:cppcheck"]
+description = "check the C and C++ embedding boundary"
+run = """
+cppcheck --enable=warning,performance,portability --std=c++20 --language=c++ --error-exitcode=1 --quiet -I include -I common -I stable bindings/*.cpp
+cppcheck --enable=warning,performance,portability --std=c11 --language=c --error-exitcode=1 --quiet -I include -I common -I stable common/dynamips_bridge_*.c
+"""
+
+[tasks."lint:cpp"]
+description = "lint the C++ bindings after generating compile commands"
+depends = ["build:native", "lint:cppcheck"]
+# Identifier macros cannot parenthesize their names; paired string_view API args are intentional.
+run = "clang-tidy -p . -checks='clang-analyzer-*,bugprone-*,-bugprone-macro-parentheses,-bugprone-easily-swappable-parameters' -warnings-as-errors='clang-analyzer-*,bugprone-*' bindings/*.cpp --quiet"
 
 [tasks."test:native"]
 description = "test the C++ module"
