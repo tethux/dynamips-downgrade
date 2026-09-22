@@ -4,8 +4,8 @@ import (
 	"errors"
 	"testing"
 
-	dynamips "github.com/tethux/dynamips-downgrade/go"
-	"github.com/tethux/dynamips-downgrade/go/errs"
+	dynamips "github.com/tethux/dynamips-downgrade"
+	"github.com/tethux/dynamips-downgrade/errs"
 )
 
 func TestVM(t *testing.T) {

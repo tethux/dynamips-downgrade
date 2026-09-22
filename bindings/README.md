@@ -20,7 +20,7 @@ The public boundary has four layers:
    `bindings/*_api.cpp` implements the C ABI. The C++ module has focused
    partitions for runtime, VM, NIO, and Ethernet switch. Bindings never call
    `cmd_*` hypervisor handlers.
-4. The `go/` package is the embedding interface. It owns C
+4. The root Go package is the embedding interface. It owns C
    strings, serializes access to legacy global state, and exposes explicit
    `Close` methods with Tethux-style categorized operation errors.
 

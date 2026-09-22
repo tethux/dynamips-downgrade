@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	dynamips "github.com/tethux/dynamips-downgrade/go"
-	"github.com/tethux/dynamips-downgrade/go/errs"
+	dynamips "github.com/tethux/dynamips-downgrade"
+	"github.com/tethux/dynamips-downgrade/errs"
 )
 
 func TestNIO(t *testing.T) {

@@ -9,7 +9,7 @@ import "C"
 import (
 	"unsafe"
 
-	"github.com/tethux/dynamips-downgrade/go/errs"
+	"github.com/tethux/dynamips-downgrade/errs"
 )
 
 // EthernetSwitch owns one reference to a Dynamips Ethernet switch.

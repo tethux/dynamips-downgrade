@@ -10,7 +10,7 @@ import (
 	"strings"
 	"unsafe"
 
-	"github.com/tethux/dynamips-downgrade/go/errs"
+	"github.com/tethux/dynamips-downgrade/errs"
 )
 
 // SetC7200NPE selects the processor engine before the router starts.

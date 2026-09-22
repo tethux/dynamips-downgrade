@@ -10,7 +10,7 @@ import (
 	"strings"
 	"unsafe"
 
-	"github.com/tethux/dynamips-downgrade/go/errs"
+	"github.com/tethux/dynamips-downgrade/errs"
 )
 
 // UDPConfig describes a UDP network I/O endpoint.

@@ -1,0 +1,30 @@
+# C7200 boot example
+
+On Veya's laptop, the mise task selects
+`~/gns3Imgs/c7200-adventerprisek9-mz.124-24.T5.zip` by default:
+
+```sh
+mise run run:example
+```
+
+To use another extracted image or zip archive:
+
+```sh
+DYNAMIPS_IOS_IMAGE=/path/to/c7200-ios.zip mise run run:example
+```
+
+The program also accepts RAM and console options directly:
+
+```sh
+mise run build:native
+mise exec -- go run ./examples/basic -ios /path/to/c7200-ios.bin -ram 512 -console-port 2001
+```
+
+The task opens `telnet` in the same terminal once the VM starts. Wait for
+`Press RETURN to get started!`, then press Enter. The example loads a small
+startup config, so IOS skips the initial setup dialog. Type IOS commands at
+the prompt. For example, enter `enable`, then `show version`. Press Ctrl+]
+and type `quit` to stop and delete the VM.
+
+The example creates temporary working files outside the repository and
+removes them when it exits. Cisco IOS images are not included here.

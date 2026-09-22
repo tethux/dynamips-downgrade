@@ -3,7 +3,7 @@ package dynamips_test
 import (
 	"fmt"
 
-	dynamips "github.com/tethux/dynamips-downgrade/go"
+	dynamips "github.com/tethux/dynamips-downgrade"
 )
 
 // Example shows the VM configuration passed to the embedded runtime.
@@ -14,7 +14,7 @@ func Example() {
 }
 
 // ExampleRuntime_CreateVM shows handle ownership. To boot IOS, use the
-// runnable example in go/examples/basic with a local image.
+// runnable example in examples/basic with a local image.
 func ExampleRuntime_CreateVM() {
 	runtime, err := dynamips.New()
 	if err != nil {

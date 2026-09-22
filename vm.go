@@ -9,7 +9,7 @@ import "C"
 import (
 	"unsafe"
 
-	"github.com/tethux/dynamips-downgrade/go/errs"
+	"github.com/tethux/dynamips-downgrade/errs"
 )
 
 // VMConfig describes a VM before it is created.

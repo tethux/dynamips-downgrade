@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	dynamips "github.com/tethux/dynamips-downgrade/go"
+	dynamips "github.com/tethux/dynamips-downgrade"
 )
 
 type legacyClient struct {
@@ -27,7 +27,7 @@ func TestLegacyHypervisorParity(t *testing.T) {
 	if !ok {
 		t.Fatal("find integration test source")
 	}
-	binary := filepath.Join(filepath.Dir(source), "..", "build", "linux", "x86_64", "debug", "dynamips")
+	binary := filepath.Join(filepath.Dir(source), "build", "linux", "x86_64", "debug", "dynamips")
 	if _, err := os.Stat(binary); os.IsNotExist(err) {
 		t.Skipf("legacy hypervisor executable is not built at %s; run mise exec -- xmake build -y dynamips", binary)
 	} else if err != nil {

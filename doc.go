@@ -6,5 +6,5 @@
 // The Go package links against native libraries. Build them with
 // `mise run build:native`. See the [C7200 boot example] for a runnable router.
 //
-// [C7200 boot example]: https://github.com/tethux/dynamips-downgrade/tree/master/go/examples/basic
+// [C7200 boot example]: https://github.com/tethux/dynamips-downgrade/tree/master/examples/basic
 package dynamips

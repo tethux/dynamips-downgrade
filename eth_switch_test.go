@@ -3,7 +3,7 @@ package dynamips_test
 import (
 	"testing"
 
-	dynamips "github.com/tethux/dynamips-downgrade/go"
+	dynamips "github.com/tethux/dynamips-downgrade"
 )
 
 func TestEthernetSwitch(t *testing.T) {

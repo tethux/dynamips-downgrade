@@ -1,8 +1,8 @@
 package dynamips
 
 /*
-#cgo CFLAGS: -I${SRCDIR}/../include
-#cgo linux,amd64 LDFLAGS: -L${SRCDIR}/../build/linux/x86_64/debug -ldynamips-bindings -ldynamips-core -lstdc++ -lelf -lpcap -ldl -lrt -lnsl -lpthread
+#cgo CFLAGS: -I${SRCDIR}/include
+#cgo linux,amd64 LDFLAGS: -L${SRCDIR}/build/linux/x86_64/debug -ldynamips-bindings -ldynamips-core -lstdc++ -lelf -lpcap -ldl -lrt -lnsl -lpthread
 #include <stdlib.h>
 #include <dynamips/dynamips.h>
 */
@@ -11,7 +11,7 @@ import "C"
 import (
 	"sync"
 
-	"github.com/tethux/dynamips-downgrade/go/errs"
+	"github.com/tethux/dynamips-downgrade/errs"
 )
 
 var runtimeMu sync.Mutex

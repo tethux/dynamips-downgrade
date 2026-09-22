@@ -5,7 +5,7 @@ package dynamips
 */
 import "C"
 
-import "github.com/tethux/dynamips-downgrade/go/errs"
+import "github.com/tethux/dynamips-downgrade/errs"
 
 func nativeError(operation string, status C.dyn_result) error {
 	var kind error
