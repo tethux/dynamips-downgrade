@@ -58,6 +58,12 @@ void dyn_core_vm_set_ram(dyn_core_vm *value, uint32_t megabytes) {
     VM_C7200(vm)->npe400_ram_size = vm->ram_size;
 }
 
+int dyn_core_vm_attach_nio(dyn_core_vm *vm, uint32_t slot, uint32_t port,
+                           dyn_core_nio *endpoint) {
+  netio_desc_t *nio = (netio_desc_t *)endpoint;
+  return vm_slot_add_nio_binding((vm_instance_t *)vm, slot, port, nio->name);
+}
+
 dyn_core_nio *dyn_core_nio_create_udp(const char *name, uint16_t local_port,
                                       const char *remote_host,
                                       uint16_t remote_port) {

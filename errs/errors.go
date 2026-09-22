@@ -17,6 +17,8 @@ var (
 	ErrStartFailed = errors.New("start failed")
 	// ErrStopFailed reports failure to stop a VM.
 	ErrStopFailed = errors.New("stop failed")
+	// ErrBindingFailed reports failure to bind one object to another.
+	ErrBindingFailed = errors.New("binding failed")
 	// ErrInUse reports a runtime with live VM or NIO references.
 	ErrInUse = errors.New("runtime still has open objects")
 	// ErrInternal reports an unexpected native failure.

@@ -46,6 +46,7 @@ public:
   [[nodiscard]] result<nio_stats> stats() const noexcept;
 
 private:
+  friend class vm;
   explicit nio(dyn_nio *handle) noexcept : handle_(handle) {}
 
   [[nodiscard]] dyn_nio *release() noexcept {

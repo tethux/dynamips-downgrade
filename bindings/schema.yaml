@@ -89,6 +89,7 @@ errors:
   - start_failed
   - stop_failed
   - internal
+  - binding_failed
 
 operations:
   - module: runtime
@@ -188,6 +189,23 @@ operations:
     source:
       cli: stable/hv_vm.c:cmd_set_ram
       core: [vm_instance_t.ram_size, c7200_t.npe400_ram_size]
+
+  - module: vm
+    operation: attach_nio
+    c_name: dyn_vm_attach_nio
+    cpp_name: dynamips::vm::attach_nio
+    go_name: dynamips.VM.AttachNIO
+    args:
+      - {name: vm, type: "handle<vm>", ownership: borrowed}
+      - {name: slot, type: uint32}
+      - {name: port, type: uint32}
+      - {name: nio, type: "handle<nio>", ownership: borrowed}
+    returns: {type: void}
+    errors: [invalid_argument, not_initialized, binding_failed, internal]
+    threading: {requires_runtime: true, blocking: false}
+    source:
+      cli: stable/hv_vm.c:cmd_slot_add_nio_binding
+      core: [vm_slot_add_nio_binding]
 
   - module: nio
     operation: create_udp

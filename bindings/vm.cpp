@@ -62,4 +62,9 @@ fn vm::set_ram(std::uint32_t megabytes) noexcept -> result<void> {
   return as_result(dyn_vm_set_ram(handle_, megabytes));
 }
 
+fn vm::attach_nio(std::uint32_t slot, std::uint32_t port,
+                  nio &endpoint) noexcept -> result<void> {
+  return as_result(dyn_vm_attach_nio(handle_, slot, port, endpoint.handle_));
+}
+
 } // namespace dynamips

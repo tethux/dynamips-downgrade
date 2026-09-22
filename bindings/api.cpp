@@ -230,3 +230,19 @@ cfn dyn_nio_get_stats(const dyn_nio *nio, dyn_nio_stats *out_stats)
     return DYN_ERR_INTERNAL;
   }
 }
+
+cfn dyn_vm_attach_nio(dyn_vm *vm, uint32_t slot, uint32_t port, dyn_nio *nio)
+    -> dyn_result {
+  try {
+    if (vm == nullptr || vm->value == nullptr || nio == nullptr ||
+        nio->value == nullptr)
+      return DYN_ERR_INVALID_ARGUMENT;
+    if (const let status = require_runtime(); status != DYN_OK)
+      return status;
+    return dyn_core_vm_attach_nio(vm->value, slot, port, nio->value) == 0
+               ? DYN_OK
+               : DYN_ERR_BINDING_FAILED;
+  } catch (...) {
+    return DYN_ERR_INTERNAL;
+  }
+}

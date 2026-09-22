@@ -7,6 +7,7 @@ module;
 
 export module dynamips:vm;
 import :core;
+import :nio;
 
 export namespace dynamips {
 
@@ -42,6 +43,8 @@ public:
   [[nodiscard]] result<void> stop() noexcept;
   [[nodiscard]] result<vm_status> status() const noexcept;
   [[nodiscard]] result<void> set_ram(std::uint32_t megabytes) noexcept;
+  [[nodiscard]] result<void> attach_nio(std::uint32_t slot, std::uint32_t port,
+                                        nio &endpoint) noexcept;
 
 private:
   explicit vm(dyn_vm *handle) noexcept : handle_(handle) {}

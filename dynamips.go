@@ -263,6 +263,20 @@ func (vm *VM) SetRAM(megabytes uint32) error {
 	return nil
 }
 
+// AttachNIO binds a NIO to a VM slot and port.
+func (vm *VM) AttachNIO(slot, port uint32, nio *NIO) error {
+	runtimeMu.Lock()
+	defer runtimeMu.Unlock()
+
+	if vm == nil || vm.handle == nil || nio == nil || nio.handle == nil {
+		return operationError("attach NIO to VM", errs.ErrClosed, nil)
+	}
+	if status := C.dyn_vm_attach_nio(vm.handle, C.uint32_t(slot), C.uint32_t(port), nio.handle); status != C.DYN_OK {
+		return nativeError("attach NIO to VM", status)
+	}
+	return nil
+}
+
 // Close releases the VM reference.
 func (vm *VM) Close() {
 	runtimeMu.Lock()
@@ -328,6 +342,8 @@ func nativeError(operation string, status C.dyn_result) error {
 		kind = errs.ErrStartFailed
 	case C.DYN_ERR_STOP_FAILED:
 		kind = errs.ErrStopFailed
+	case C.DYN_ERR_BINDING_FAILED:
+		kind = errs.ErrBindingFailed
 	default:
 		kind = errs.ErrInternal
 	}

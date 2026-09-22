@@ -48,6 +48,9 @@ func TestRuntimeVMAndUDP(t *testing.T) {
 		t.Fatalf("create UDP NIO: %v", err)
 	}
 	t.Cleanup(nio.Close)
+	if bindErr := vm.AttachNIO(0, 0, nio); !errors.Is(bindErr, errs.ErrBindingFailed) {
+		t.Fatalf("attach NIO without slot card: got %v, want ErrBindingFailed", bindErr)
+	}
 	if stats, statsErr := nio.Stats(); statsErr != nil || stats != (dynamips.NIOStats{}) {
 		t.Fatalf("new NIO stats: got %+v, %v; want zero counters", stats, statsErr)
 	}

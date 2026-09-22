@@ -20,6 +20,8 @@ const char *dyn_result_message(dyn_result result) {
     return ("stop failed");
   case DYN_ERR_INTERNAL:
     return ("internal error");
+  case DYN_ERR_BINDING_FAILED:
+    return ("binding failed");
   }
 
   return ("unknown error");

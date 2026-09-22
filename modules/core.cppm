@@ -18,6 +18,7 @@ enum class error : int {
   start_failed = DYN_ERR_START_FAILED,
   stop_failed = DYN_ERR_STOP_FAILED,
   internal = DYN_ERR_INTERNAL,
+  binding_failed = DYN_ERR_BINDING_FAILED,
 };
 
 template <typename T> using result = std::expected<T, error>;
