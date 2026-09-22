@@ -65,6 +65,18 @@ dyn_core_nio *dyn_core_nio_create_udp(const char *name, uint16_t local_port,
       (char *)name, local_port, (char *)remote_host, remote_port));
 }
 
+dyn_core_nio *dyn_core_nio_create_udp_auto(const char *name,
+                                           const char *local_addr,
+                                           uint16_t port_start,
+                                           uint16_t port_end) {
+  return ((dyn_core_nio *)netio_desc_create_udp_auto(
+      (char *)name, (char *)local_addr, port_start, port_end));
+}
+
+int dyn_core_nio_udp_auto_local_port(const dyn_core_nio *nio) {
+  return netio_udp_auto_get_local_port((netio_desc_t *)nio);
+}
+
 void dyn_core_nio_release(dyn_core_nio *nio) {
   netio_desc_t *value = (netio_desc_t *)nio;
 

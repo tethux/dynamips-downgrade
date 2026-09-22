@@ -23,6 +23,11 @@ void dyn_core_vm_set_ram(dyn_core_vm *vm, uint32_t megabytes);
 dyn_core_nio *dyn_core_nio_create_udp(const char *name, uint16_t local_port,
                                       const char *remote_host,
                                       uint16_t remote_port);
+dyn_core_nio *dyn_core_nio_create_udp_auto(const char *name,
+                                           const char *local_addr,
+                                           uint16_t port_start,
+                                           uint16_t port_end);
+int dyn_core_nio_udp_auto_local_port(const dyn_core_nio *nio);
 void dyn_core_nio_release(dyn_core_nio *nio);
 int dyn_core_nio_delete(const char *name);
 void dyn_core_nio_get_stats(const dyn_core_nio *nio, dyn_nio_stats *out_stats);

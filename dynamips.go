@@ -48,6 +48,14 @@ type UDPConfig struct {
 	RemotePort uint16
 }
 
+// UDPAutoConfig describes a UDP NIO with a locally chosen port.
+type UDPAutoConfig struct {
+	Name      string
+	LocalAddr string
+	PortStart uint16
+	PortEnd   uint16
+}
+
 // VM owns one reference to a Dynamips VM.
 type VM struct {
 	runtime *Runtime
@@ -165,6 +173,31 @@ func (r *Runtime) CreateUDP(config UDPConfig) (*NIO, error) {
 
 	r.refs++
 	return &NIO{runtime: r, handle: handle}, nil
+}
+
+// CreateUDPAuto creates a UDP NIO and returns its bound local port.
+func (r *Runtime) CreateUDPAuto(config UDPAutoConfig) (*NIO, uint16, error) {
+	runtimeMu.Lock()
+	defer runtimeMu.Unlock()
+
+	if r == nil || !r.active {
+		return nil, 0, operationError("create UDP auto NIO", errs.ErrClosed, nil)
+	}
+	name := C.CString(config.Name)
+	defer C.free(unsafe.Pointer(name))
+	localAddr := C.CString(config.LocalAddr)
+	defer C.free(unsafe.Pointer(localAddr))
+
+	var handle *C.dyn_nio
+	var localPort C.uint16_t
+	status := C.dyn_nio_create_udp_auto(name, localAddr,
+		C.uint16_t(config.PortStart), C.uint16_t(config.PortEnd),
+		&handle, &localPort)
+	if status != C.DYN_OK {
+		return nil, 0, nativeError("create UDP auto NIO", status)
+	}
+	r.refs++
+	return &NIO{runtime: r, handle: handle}, uint16(localPort), nil
 }
 
 // Start starts the VM.

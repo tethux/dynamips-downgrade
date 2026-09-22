@@ -17,11 +17,16 @@ struct nio_stats {
   std::uint64_t bytes_out;
 };
 
+struct udp_auto_result;
+
 class nio final {
 public:
   [[nodiscard]] static result<nio>
   create_udp(std::string_view name, std::uint16_t local_port,
              std::string_view remote_host, std::uint16_t remote_port) noexcept;
+  [[nodiscard]] static result<udp_auto_result>
+  create_udp_auto(std::string_view name, std::string_view local_addr,
+                  std::uint16_t port_start, std::uint16_t port_end) noexcept;
 
   nio(const nio &) = delete;
   nio &operator=(const nio &) = delete;
@@ -55,6 +60,11 @@ private:
   }
 
   dyn_nio *handle_ = nullptr;
+};
+
+struct udp_auto_result {
+  nio endpoint;
+  std::uint16_t local_port;
 };
 
 } // namespace dynamips

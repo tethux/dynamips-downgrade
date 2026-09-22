@@ -51,6 +51,14 @@ func TestRuntimeVMAndUDP(t *testing.T) {
 	if stats, statsErr := nio.Stats(); statsErr != nil || stats != (dynamips.NIOStats{}) {
 		t.Fatalf("new NIO stats: got %+v, %v; want zero counters", stats, statsErr)
 	}
+	autoNIO, localPort, autoErr := runtime.CreateUDPAuto(dynamips.UDPAutoConfig{
+		Name: "go-bindings-udp-auto", LocalAddr: "",
+		PortStart: 0, PortEnd: 0,
+	})
+	if autoErr != nil || localPort == 0 {
+		t.Fatalf("create UDP auto NIO: got port %d, %v", localPort, autoErr)
+	}
+	t.Cleanup(autoNIO.Close)
 
 	if closeErr := runtime.Close(); !errors.Is(closeErr, errs.ErrInUse) {
 		t.Fatalf("close runtime with live handles: got %v, want ErrInUse", closeErr)
@@ -62,6 +70,7 @@ func TestRuntimeVMAndUDP(t *testing.T) {
 		t.Fatalf("stopped VM status: got %v, %v; want halted", status, statusErr)
 	}
 	nio.Close()
+	autoNIO.Close()
 	vm.Close()
 	if _, statusErr := vm.Status(); !errors.Is(statusErr, errs.ErrClosed) {
 		t.Fatalf("closed VM status: got %v, want ErrClosed", statusErr)

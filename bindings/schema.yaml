@@ -75,6 +75,10 @@ types:
     c_type: dyn_nio_stats
     cpp_type: dynamips::nio_stats
     fields: [packets_in, packets_out, bytes_in, bytes_out]
+  udp_auto_result:
+    kind: struct
+    cpp_type: dynamips::udp_auto_result
+    fields: [endpoint, local_port]
 
 errors:
   - invalid_argument
@@ -216,3 +220,20 @@ operations:
     source:
       cli: common/hv_nio.c:cmd_get_stats
       core: [netio_desc_t.stats_pkts_in, netio_desc_t.stats_pkts_out, netio_desc_t.stats_bytes_in, netio_desc_t.stats_bytes_out]
+
+  - module: nio
+    operation: create_udp_auto
+    c_name: dyn_nio_create_udp_auto
+    cpp_name: dynamips::nio::create_udp_auto
+    go_name: dynamips.Runtime.CreateUDPAuto
+    args:
+      - {name: name, type: string}
+      - {name: local_addr, type: string}
+      - {name: port_start, type: port}
+      - {name: port_end, type: port}
+    returns: {type: udp_auto_result, ownership: registry_reference}
+    errors: [invalid_argument, not_initialized, out_of_memory, create_failed, internal]
+    threading: {requires_runtime: true, blocking: false}
+    source:
+      cli: common/hv_nio.c:cmd_create_udp_auto
+      core: [netio_desc_create_udp_auto, netio_udp_auto_get_local_port]
