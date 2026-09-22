@@ -1,2 +1,7 @@
 CompileFlags:
-  Add: [-std=c23, -fasm, -Wall, -Wextra, -Wpedantic, -Wshadow, -Wconversion, -Iinclude, -Icommon, -Istable]
+  Add: [-fasm, -Wall, -Wextra, -Wpedantic, -Wshadow, -Wconversion, -Iinclude, -Icommon, -Istable]
+---
+If:
+  PathMatch: modules/.*\.cppm
+CompileFlags:
+  Add: [-std=c++23]

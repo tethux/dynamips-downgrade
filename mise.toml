@@ -48,8 +48,9 @@ depends = ["build"]
 run = "xmake run dynamips"
 
 [tasks.compiledb]
-description = "generate compile_commands.json"
-run = "xmake project -k compile_commands ."
+description = "generate clangd compile commands, including C++ modules"
+depends = ["build:native"]
+run = "xmake project -k compile_commands --lsp=clangd ."
 
 [tasks.format]
 description = "format C and C++ sources"
