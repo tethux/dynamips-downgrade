@@ -11,9 +11,10 @@ The public boundary has four layers:
    `std::expected` and move-only RAII handles. C++ consumers use
    `import dynamips;`; there is no public C++ header.
 3. `dynamips_bridge.c` isolates the C++-unsafe legacy headers. `api.cpp`
-   implements the C ABI, while `dynamips.cpp` implements the module. Both use
-   the same boundary style and `macros.h` vocabulary as shitnet and never call
-   `cmd_*` hypervisor handlers.
+   implements the C ABI. The C++ interface has focused module partitions for
+   core types, runtime, VM, and NIO; `vm.cpp` and `nio.cpp` implement their
+   operations. The bindings use the same boundary style and `macros.h`
+   vocabulary as shitnet and never call `cmd_*` hypervisor handlers.
 4. The root Go package is the normal test and embedding interface. It owns C
    strings, serializes access to legacy global state, and exposes explicit
    `Close` methods with Tethux-style categorized operation errors.
