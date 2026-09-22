@@ -108,7 +108,7 @@ configure_dynamips_target("dynamips-core")
     add_deps("rom2c")
     add_rules("dynamips.microcode")
     add_headerfiles("include/(dynamips/*.h)")
-    add_files("common/*.c|bin2c.c|dynamips_bridge_*.c|dynamips_main.c|hv_*.c|nvram_export.c|ppc32_nojit_trans.c|ppc32_ppc32_trans.c|profiler.c|rom2c.c|udp_recv.c|udp_send.c")
+    add_files("common/*.c|dynamips_bridge_*.c|dynamips_main.c|hv_*.c|ppc32_nojit_trans.c|ppc32_ppc32_trans.c|profiler.c|rom2c.c")
     if not (has_config("enable_linux_eth") and is_plat("linux")) then
         remove_files("common/linux_eth.c")
     end

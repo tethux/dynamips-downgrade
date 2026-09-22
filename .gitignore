@@ -5,9 +5,3 @@
 /.xmake/
 /compile_commands.json
 /*_log.txt
-unstable/stable
-unstable/man
-unstable/c7200_i0_log.txt
-unstable/Makefile
-unstable/common
-unstable/unstable
