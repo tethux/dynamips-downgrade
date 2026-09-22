@@ -12,14 +12,15 @@ The public boundary has four layers:
    `import dynamips;`; there is no public C++ header.
 3. `dynamips_bridge.c` isolates the C++-unsafe legacy headers. `api.cpp`
    implements the C ABI. The C++ interface has focused module partitions for
-   core types, runtime, VM, and NIO; `vm.cpp` and `nio.cpp` implement their
+   core types, runtime, VM, NIO, and Ethernet switch; the corresponding
+   files in `bindings/` implement their
    operations. The bindings use the same boundary style and `macros.h`
    vocabulary as shitnet and never call `cmd_*` hypervisor handlers.
 4. The root Go package is the normal test and embedding interface. It owns C
    strings, serializes access to legacy global state, and exposes explicit
    `Close` methods with Tethux-style categorized operation errors.
 
-The legacy registry owns VM and NIO objects. A public handle owns one registry
+The legacy registry owns VM, NIO, and Ethernet switch objects. A public handle owns one registry
 reference and releases it when destroyed. All handles must be destroyed before
 the process-global runtime. Calls are externally serialized until the legacy
 global state can be isolated.

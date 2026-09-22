@@ -10,6 +10,7 @@ extern "C" {
 
 typedef struct dyn_core_vm dyn_core_vm;
 typedef struct dyn_core_nio dyn_core_nio;
+typedef struct dyn_core_eth_switch dyn_core_eth_switch;
 
 dyn_core_vm *dyn_core_vm_create(const char *name, int32_t instance_id,
                                 const char *platform);
@@ -33,6 +34,11 @@ int dyn_core_nio_udp_auto_local_port(const dyn_core_nio *nio);
 void dyn_core_nio_release(dyn_core_nio *nio);
 int dyn_core_nio_delete(const char *name);
 void dyn_core_nio_get_stats(const dyn_core_nio *nio, dyn_nio_stats *out_stats);
+
+dyn_core_eth_switch *dyn_core_eth_switch_create(const char *name);
+void dyn_core_eth_switch_release(dyn_core_eth_switch *sw);
+int dyn_core_eth_switch_delete(const char *name);
+int dyn_core_eth_switch_add_nio(dyn_core_eth_switch *sw, dyn_core_nio *nio);
 
 #ifdef __cplusplus
 }

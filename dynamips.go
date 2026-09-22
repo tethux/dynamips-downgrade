@@ -99,7 +99,7 @@ func New() (*Runtime, error) {
 	return &Runtime{active: true}, nil
 }
 
-// Close shuts down the runtime when all VM and NIO handles are closed.
+// Close shuts down the runtime when all owned handles are closed.
 func (r *Runtime) Close() error {
 	runtimeMu.Lock()
 	defer runtimeMu.Unlock()

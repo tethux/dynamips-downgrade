@@ -47,6 +47,7 @@ public:
 
 private:
   friend class vm;
+  friend class ethernet_switch;
   explicit nio(dyn_nio *handle) noexcept : handle_(handle) {}
 
   [[nodiscard]] dyn_nio *release() noexcept {

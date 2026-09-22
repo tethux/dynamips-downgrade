@@ -22,6 +22,7 @@ typedef enum dyn_result {
 
 typedef struct dyn_vm dyn_vm;
 typedef struct dyn_nio dyn_nio;
+typedef struct dyn_eth_switch dyn_eth_switch;
 
 typedef enum dyn_vm_status {
   DYN_VM_HALTED = 0,
@@ -61,6 +62,10 @@ dyn_result dyn_nio_create_udp_auto(const char *name, const char *local_addr,
                                    dyn_nio **out_nio, uint16_t *out_local_port);
 void dyn_nio_release(dyn_nio *nio);
 dyn_result dyn_nio_get_stats(const dyn_nio *nio, dyn_nio_stats *out_stats);
+
+dyn_result dyn_eth_switch_create(const char *name, dyn_eth_switch **out_switch);
+void dyn_eth_switch_release(dyn_eth_switch *sw);
+dyn_result dyn_eth_switch_add_nio(dyn_eth_switch *sw, dyn_nio *nio);
 
 #ifdef __cplusplus
 }

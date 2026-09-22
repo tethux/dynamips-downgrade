@@ -62,6 +62,14 @@ func TestRuntimeVMAndUDP(t *testing.T) {
 		t.Fatalf("create UDP auto NIO: got port %d, %v", localPort, autoErr)
 	}
 	t.Cleanup(autoNIO.Close)
+	sw, switchErr := runtime.CreateEthernetSwitch("go-bindings-switch")
+	if switchErr != nil {
+		t.Fatalf("create Ethernet switch: %v", switchErr)
+	}
+	t.Cleanup(sw.Close)
+	if addErr := sw.AddNIO(autoNIO); addErr != nil {
+		t.Fatalf("add NIO to Ethernet switch: %v", addErr)
+	}
 
 	if closeErr := runtime.Close(); !errors.Is(closeErr, errs.ErrInUse) {
 		t.Fatalf("close runtime with live handles: got %v, want ErrInUse", closeErr)
@@ -74,6 +82,7 @@ func TestRuntimeVMAndUDP(t *testing.T) {
 	}
 	nio.Close()
 	autoNIO.Close()
+	sw.Close()
 	vm.Close()
 	if _, statusErr := vm.Status(); !errors.Is(statusErr, errs.ErrClosed) {
 		t.Fatalf("closed VM status: got %v, want ErrClosed", statusErr)

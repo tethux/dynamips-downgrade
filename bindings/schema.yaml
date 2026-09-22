@@ -52,6 +52,11 @@ types:
     c_type: dyn_nio
     ownership: registry_reference
     release: dyn_nio_release
+  eth_switch:
+    kind: handle
+    c_type: dyn_eth_switch
+    ownership: registry_reference
+    release: dyn_eth_switch_release
   string:
     kind: scalar
     c_type: const char *
@@ -255,3 +260,32 @@ operations:
     source:
       cli: common/hv_nio.c:cmd_create_udp_auto
       core: [netio_desc_create_udp_auto, netio_udp_auto_get_local_port]
+
+  - module: eth_switch
+    operation: create
+    c_name: dyn_eth_switch_create
+    cpp_name: dynamips::ethernet_switch::create
+    go_name: dynamips.Runtime.CreateEthernetSwitch
+    args:
+      - {name: name, type: string}
+    returns: {type: "handle<eth_switch>", ownership: registry_reference}
+    errors: [invalid_argument, not_initialized, out_of_memory, create_failed, internal]
+    threading: {requires_runtime: true, blocking: false}
+    source:
+      cli: common/hv_ethsw.c:cmd_create
+      core: [ethsw_create]
+
+  - module: eth_switch
+    operation: add_nio
+    c_name: dyn_eth_switch_add_nio
+    cpp_name: dynamips::ethernet_switch::add
+    go_name: dynamips.EthernetSwitch.AddNIO
+    args:
+      - {name: switch, type: "handle<eth_switch>", ownership: borrowed}
+      - {name: nio, type: "handle<nio>", ownership: borrowed}
+    returns: {type: void}
+    errors: [invalid_argument, not_initialized, binding_failed, internal]
+    threading: {requires_runtime: true, blocking: false}
+    source:
+      cli: common/hv_ethsw.c:cmd_add_nio
+      core: [ethsw_add_netio]
