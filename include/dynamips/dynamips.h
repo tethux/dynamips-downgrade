@@ -41,6 +41,7 @@ void dyn_vm_release(dyn_vm *vm);
 dyn_result dyn_vm_start(dyn_vm *vm);
 dyn_result dyn_vm_stop(dyn_vm *vm);
 dyn_result dyn_vm_get_status(const dyn_vm *vm, dyn_vm_status *out_status);
+dyn_result dyn_vm_set_ram(dyn_vm *vm, uint32_t megabytes);
 
 dyn_result dyn_nio_create_udp(const char *name, uint16_t local_port,
                               const char *remote_host, uint16_t remote_port,

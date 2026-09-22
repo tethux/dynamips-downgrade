@@ -208,6 +208,20 @@ func (vm *VM) Status() (VMStatus, error) {
 	return VMStatus(value), nil
 }
 
+// SetRAM sets the VM's RAM size in megabytes.
+func (vm *VM) SetRAM(megabytes uint32) error {
+	runtimeMu.Lock()
+	defer runtimeMu.Unlock()
+
+	if vm == nil || vm.handle == nil {
+		return operationError("set VM RAM", errs.ErrClosed, nil)
+	}
+	if status := C.dyn_vm_set_ram(vm.handle, C.uint32_t(megabytes)); status != C.DYN_OK {
+		return nativeError("set VM RAM", status)
+	}
+	return nil
+}
+
 // Close releases the VM reference.
 func (vm *VM) Close() {
 	runtimeMu.Lock()

@@ -18,6 +18,7 @@ int dyn_core_vm_delete(const char *name);
 int dyn_core_vm_start(dyn_core_vm *vm);
 int dyn_core_vm_stop(dyn_core_vm *vm);
 int dyn_core_vm_get_status(const dyn_core_vm *vm, dyn_vm_status *out_status);
+void dyn_core_vm_set_ram(dyn_core_vm *vm, uint32_t megabytes);
 
 dyn_core_nio *dyn_core_nio_create_udp(const char *name, uint16_t local_port,
                                       const char *remote_host,

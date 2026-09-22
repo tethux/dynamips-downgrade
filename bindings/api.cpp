@@ -112,6 +112,19 @@ cfn dyn_vm_get_status(const dyn_vm *vm, dyn_vm_status *out_status)
   }
 }
 
+cfn dyn_vm_set_ram(dyn_vm *vm, uint32_t megabytes) -> dyn_result {
+  try {
+    if (vm == nullptr || vm->value == nullptr)
+      return DYN_ERR_INVALID_ARGUMENT;
+    if (const let status = require_runtime(); status != DYN_OK)
+      return status;
+    dyn_core_vm_set_ram(vm->value, megabytes);
+    return DYN_OK;
+  } catch (...) {
+    return DYN_ERR_INTERNAL;
+  }
+}
+
 cfn dyn_nio_create_udp(const char *name, uint16_t local_port,
                        const char *remote_host, uint16_t remote_port,
                        dyn_nio **out_nio) -> dyn_result {

@@ -58,4 +58,8 @@ fn vm::status() const noexcept -> result<vm_status> {
   return static_cast<vm_status>(value);
 }
 
+fn vm::set_ram(std::uint32_t megabytes) noexcept -> result<void> {
+  return as_result(dyn_vm_set_ram(handle_, megabytes));
+}
+
 } // namespace dynamips

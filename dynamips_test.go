@@ -31,6 +31,9 @@ func TestRuntimeVMAndUDP(t *testing.T) {
 		t.Fatalf("create VM: %v", err)
 	}
 	t.Cleanup(vm.Close)
+	if setErr := vm.SetRAM(256); setErr != nil {
+		t.Fatalf("set VM RAM: %v", setErr)
+	}
 	if status, statusErr := vm.Status(); statusErr != nil || status != dynamips.VMHalted {
 		t.Fatalf("new VM status: got %v, %v; want halted", status, statusErr)
 	}

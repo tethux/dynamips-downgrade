@@ -66,6 +66,10 @@ types:
     c_type: dyn_vm_status
     cpp_type: dynamips::vm_status
     values: [halted, shutdown, running, suspended]
+  uint32:
+    kind: scalar
+    c_type: uint32_t
+    cpp_type: std::uint32_t
 
 errors:
   - invalid_argument
@@ -160,6 +164,21 @@ operations:
     source:
       cli: stable/hv_vm.c:cmd_get_status
       core: [vm_instance_t.status]
+
+  - module: vm
+    operation: set_ram
+    c_name: dyn_vm_set_ram
+    cpp_name: dynamips::vm::set_ram
+    go_name: dynamips.VM.SetRAM
+    args:
+      - {name: vm, type: "handle<vm>", ownership: borrowed}
+      - {name: megabytes, type: uint32}
+    returns: {type: void}
+    errors: [invalid_argument, not_initialized, internal]
+    threading: {requires_runtime: true, blocking: false}
+    source:
+      cli: stable/hv_vm.c:cmd_set_ram
+      core: [vm_instance_t.ram_size, c7200_t.npe400_ram_size]
 
   - module: nio
     operation: create_udp

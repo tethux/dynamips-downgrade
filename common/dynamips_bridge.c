@@ -1,6 +1,7 @@
 #include "dynamips_bridge.h"
 
 #include "cpu.h"
+#include "dev_c7200.h"
 #include "vm.h"
 #include "net_io.h"
 
@@ -47,6 +48,14 @@ int dyn_core_vm_get_status(const dyn_core_vm *vm, dyn_vm_status *out_status) {
     return (0);
   }
   return (-1);
+}
+
+void dyn_core_vm_set_ram(dyn_core_vm *value, uint32_t megabytes) {
+  vm_instance_t *vm = (vm_instance_t *)value;
+
+  vm->ram_size = megabytes;
+  if (vm->elf_machine_id == C7200_ELF_MACHINE_ID)
+    VM_C7200(vm)->npe400_ram_size = vm->ram_size;
 }
 
 dyn_core_nio *dyn_core_nio_create_udp(const char *name, uint16_t local_port,

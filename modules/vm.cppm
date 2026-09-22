@@ -41,6 +41,7 @@ public:
   [[nodiscard]] result<void> start() noexcept;
   [[nodiscard]] result<void> stop() noexcept;
   [[nodiscard]] result<vm_status> status() const noexcept;
+  [[nodiscard]] result<void> set_ram(std::uint32_t megabytes) noexcept;
 
 private:
   explicit vm(dyn_vm *handle) noexcept : handle_(handle) {}
