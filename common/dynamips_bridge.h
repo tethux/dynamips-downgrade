@@ -25,6 +25,7 @@ dyn_core_nio *dyn_core_nio_create_udp(const char *name, uint16_t local_port,
                                       uint16_t remote_port);
 void dyn_core_nio_release(dyn_core_nio *nio);
 int dyn_core_nio_delete(const char *name);
+void dyn_core_nio_get_stats(const dyn_core_nio *nio, dyn_nio_stats *out_stats);
 
 #ifdef __cplusplus
 }

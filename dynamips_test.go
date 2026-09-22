@@ -48,6 +48,9 @@ func TestRuntimeVMAndUDP(t *testing.T) {
 		t.Fatalf("create UDP NIO: %v", err)
 	}
 	t.Cleanup(nio.Close)
+	if stats, statsErr := nio.Stats(); statsErr != nil || stats != (dynamips.NIOStats{}) {
+		t.Fatalf("new NIO stats: got %+v, %v; want zero counters", stats, statsErr)
+	}
 
 	if closeErr := runtime.Close(); !errors.Is(closeErr, errs.ErrInUse) {
 		t.Fatalf("close runtime with live handles: got %v, want ErrInUse", closeErr)

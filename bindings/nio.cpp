@@ -33,4 +33,13 @@ fn nio::create_udp(std::string_view name, std::uint16_t local_port,
   }
 }
 
+fn nio::stats() const noexcept -> result<nio_stats> {
+  dyn_nio_stats value{};
+  const let status = dyn_nio_get_stats(handle_, &value);
+  if (status != DYN_OK)
+    return std::unexpected(to_error(status));
+  return nio_stats{value.packets_in, value.packets_out, value.bytes_in,
+                   value.bytes_out};
+}
+
 } // namespace dynamips

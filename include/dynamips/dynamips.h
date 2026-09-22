@@ -29,6 +29,13 @@ typedef enum dyn_vm_status {
   DYN_VM_SUSPENDED = 3,
 } dyn_vm_status;
 
+typedef struct dyn_nio_stats {
+  uint64_t packets_in;
+  uint64_t packets_out;
+  uint64_t bytes_in;
+  uint64_t bytes_out;
+} dyn_nio_stats;
+
 const char *dyn_result_message(dyn_result result);
 
 dyn_result dyn_runtime_init(int argc, char *argv[]);
@@ -47,6 +54,7 @@ dyn_result dyn_nio_create_udp(const char *name, uint16_t local_port,
                               const char *remote_host, uint16_t remote_port,
                               dyn_nio **out_nio);
 void dyn_nio_release(dyn_nio *nio);
+dyn_result dyn_nio_get_stats(const dyn_nio *nio, dyn_nio_stats *out_stats);
 
 #ifdef __cplusplus
 }

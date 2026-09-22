@@ -70,6 +70,14 @@ type NIO struct {
 	handle  *C.dyn_nio
 }
 
+// NIOStats contains traffic counters for one NIO.
+type NIOStats struct {
+	PacketsIn  uint64
+	PacketsOut uint64
+	BytesIn    uint64
+	BytesOut   uint64
+}
+
 // New initializes the process-global Dynamips runtime for embedding.
 func New() (*Runtime, error) {
 	runtimeMu.Lock()
@@ -234,6 +242,26 @@ func (vm *VM) Close() {
 	C.dyn_vm_release(vm.handle)
 	vm.handle = nil
 	vm.runtime.refs--
+}
+
+// Stats returns the NIO's traffic counters.
+func (nio *NIO) Stats() (NIOStats, error) {
+	runtimeMu.Lock()
+	defer runtimeMu.Unlock()
+
+	if nio == nil || nio.handle == nil {
+		return NIOStats{}, operationError("get NIO stats", errs.ErrClosed, nil)
+	}
+	var value C.dyn_nio_stats
+	if status := C.dyn_nio_get_stats(nio.handle, &value); status != C.DYN_OK {
+		return NIOStats{}, nativeError("get NIO stats", status)
+	}
+	return NIOStats{
+		PacketsIn:  uint64(value.packets_in),
+		PacketsOut: uint64(value.packets_out),
+		BytesIn:    uint64(value.bytes_in),
+		BytesOut:   uint64(value.bytes_out),
+	}, nil
 }
 
 // Close releases the NIO reference.

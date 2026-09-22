@@ -70,6 +70,11 @@ types:
     kind: scalar
     c_type: uint32_t
     cpp_type: std::uint32_t
+  nio_stats:
+    kind: struct
+    c_type: dyn_nio_stats
+    cpp_type: dynamips::nio_stats
+    fields: [packets_in, packets_out, bytes_in, bytes_out]
 
 errors:
   - invalid_argument
@@ -197,3 +202,17 @@ operations:
     source:
       cli: common/hv_nio.c:cmd_create_udp
       core: [netio_desc_create_udp]
+
+  - module: nio
+    operation: stats
+    c_name: dyn_nio_get_stats
+    cpp_name: dynamips::nio::stats
+    go_name: dynamips.NIO.Stats
+    args:
+      - {name: nio, type: "handle<nio>", ownership: borrowed}
+    returns: {type: nio_stats}
+    errors: [invalid_argument, not_initialized, internal]
+    threading: {requires_runtime: true, blocking: false}
+    source:
+      cli: common/hv_nio.c:cmd_get_stats
+      core: [netio_desc_t.stats_pkts_in, netio_desc_t.stats_pkts_out, netio_desc_t.stats_bytes_in, netio_desc_t.stats_bytes_out]

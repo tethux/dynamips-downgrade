@@ -74,3 +74,13 @@ void dyn_core_nio_release(dyn_core_nio *nio) {
 int dyn_core_nio_delete(const char *name) {
   return (netio_delete((char *)name));
 }
+
+void dyn_core_nio_get_stats(const dyn_core_nio *value,
+                            dyn_nio_stats *out_stats) {
+  const netio_desc_t *nio = (const netio_desc_t *)value;
+
+  out_stats->packets_in = nio->stats_pkts_in;
+  out_stats->packets_out = nio->stats_pkts_out;
+  out_stats->bytes_in = nio->stats_bytes_in;
+  out_stats->bytes_out = nio->stats_bytes_out;
+}

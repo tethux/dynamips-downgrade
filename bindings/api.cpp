@@ -171,3 +171,20 @@ cfn dyn_nio_release(dyn_nio *nio) -> void {
   } catch (...) {
   }
 }
+
+cfn dyn_nio_get_stats(const dyn_nio *nio, dyn_nio_stats *out_stats)
+    -> dyn_result {
+  try {
+    if (out_stats == nullptr)
+      return DYN_ERR_INVALID_ARGUMENT;
+    *out_stats = {};
+    if (nio == nullptr || nio->value == nullptr)
+      return DYN_ERR_INVALID_ARGUMENT;
+    if (const let status = require_runtime(); status != DYN_OK)
+      return status;
+    dyn_core_nio_get_stats(nio->value, out_stats);
+    return DYN_OK;
+  } catch (...) {
+    return DYN_ERR_INTERNAL;
+  }
+}

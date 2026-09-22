@@ -10,6 +10,13 @@ import :core;
 
 export namespace dynamips {
 
+struct nio_stats {
+  std::uint64_t packets_in;
+  std::uint64_t packets_out;
+  std::uint64_t bytes_in;
+  std::uint64_t bytes_out;
+};
+
 class nio final {
 public:
   [[nodiscard]] static result<nio>
@@ -30,6 +37,8 @@ public:
   }
 
   ~nio() { reset(); }
+
+  [[nodiscard]] result<nio_stats> stats() const noexcept;
 
 private:
   explicit nio(dyn_nio *handle) noexcept : handle_(handle) {}
