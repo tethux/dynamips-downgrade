@@ -1140,7 +1140,7 @@ int vtty_is_char_avail(vtty_t *vtty) {
 }
 
 /* Put char to vtty */
-void vtty_put_char(vtty_t *vtty, char ch) {
+void vtty_put_char(vtty_t *vtty, unsigned char ch) {
   switch (vtty->type) {
   case VTTY_TYPE_NONE:
     break;

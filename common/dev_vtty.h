@@ -108,7 +108,7 @@ int vtty_store_data(vtty_t *vtty, char *data, int len);
 int vtty_get_char(vtty_t *vtty);
 
 /* print a character to vtty */
-void vtty_put_char(vtty_t *vtty, char ch);
+void vtty_put_char(vtty_t *vtty, unsigned char ch);
 
 /* Put a buffer to vtty */
 void vtty_put_buffer(vtty_t *vtty, char *buf, size_t len);
