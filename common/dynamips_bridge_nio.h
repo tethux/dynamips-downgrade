@@ -14,6 +14,10 @@ dyn_core_nio *dyn_core_nio_create_udp_auto(const char *name,
                                            const char *local_addr,
                                            uint16_t port_start,
                                            uint16_t port_end);
+dyn_core_nio *dyn_core_nio_create_tap(const char *name, const char *device);
+int dyn_core_nio_connect_udp_auto(dyn_core_nio *nio, const char *host,
+                                  uint16_t port);
+int dyn_core_nio_delete_owned(dyn_core_nio *nio);
 int dyn_core_nio_udp_auto_local_port(const dyn_core_nio *nio);
 void dyn_core_nio_release(dyn_core_nio *nio);
 int dyn_core_nio_delete(const char *name);

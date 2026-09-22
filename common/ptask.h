@@ -38,5 +38,6 @@ int ptask_remove(ptask_id_t id);
 
 /* Initialize ptask module */
 int ptask_init(u_int sleep_time);
+void ptask_shutdown(void);
 
 #endif

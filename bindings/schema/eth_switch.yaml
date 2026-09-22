@@ -2,11 +2,11 @@ schema_version: 1
 
 scope:
   required:
-    [create, add_nio, remove_nio, set_access_port, set_dot1q_port, set_qinq_port]
-  deferred: []
+    [create, add_nio]
+  deferred: [remove_nio, set_access_port, set_dot1q_port, set_qinq_port]
   legacy_only: [rename, list, show_mac_addr_table]
 
-decision: "Defer new switch binding work until Tethux needs the built-in switch."
+decision: "Keep the existing switch bindings; defer further work until Tethux needs the built-in switch."
 
 operations:
   - module: eth_switch

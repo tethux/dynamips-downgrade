@@ -34,4 +34,11 @@ template <typename T> using result = std::expected<T, error>;
   return dyn_result_message(static_cast<dyn_result>(value));
 }
 
+namespace detail {
+void runtime_acquired() noexcept;
+void runtime_released() noexcept;
+void handle_acquired() noexcept;
+void handle_released() noexcept;
+} // namespace detail
+
 } // namespace dynamips

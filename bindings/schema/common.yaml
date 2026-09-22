@@ -80,6 +80,12 @@ types:
     kind: scalar
     c_type: uint16_t
     cpp_type: std::uint16_t
+  mac_address:
+    kind: fixed_array
+    c_type: "const uint8_t[6]"
+    cpp_type: "std::array<std::uint8_t, 6>"
+    element: uint8
+    length: 6
   vm_status:
     kind: enum
     c_type: dyn_vm_status

@@ -28,7 +28,7 @@ operations:
     go_name: dynamips.New
     args: []
     returns: {type: "handle<runtime>", ownership: unique}
-    errors: [already_initialized, start_failed]
+    errors: [already_initialized, out_of_memory, io, start_failed]
     threading: {requires_runtime: false, blocking: false}
     source: {core: [dyn_runtime_init_embedded]}
 

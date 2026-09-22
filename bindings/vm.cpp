@@ -9,6 +9,7 @@ module;
 #include <new>
 #include <string>
 #include <string_view>
+#include <vector>
 
 module dynamips;
 
@@ -51,6 +52,68 @@ fn vm::stop() noexcept -> result<void> {
   return as_result(dyn_vm_stop(handle_));
 }
 
+fn vm::delete_instance() noexcept -> result<void> {
+  const let status = dyn_vm_delete(&handle_);
+  if (status == DYN_OK)
+    detail::handle_released();
+  return as_result(status);
+}
+
+fn vm::suspend() noexcept -> result<void> {
+  return as_result(dyn_vm_suspend(handle_));
+}
+
+fn vm::resume() noexcept -> result<void> {
+  return as_result(dyn_vm_resume(handle_));
+}
+
+fn vm::set_ios(std::string_view path) noexcept -> result<void> {
+  try {
+    const std::string owned(path);
+    return as_result(dyn_vm_set_ios(handle_, owned.c_str()));
+  } catch (const std::bad_alloc &) {
+    return std::unexpected(error::out_of_memory);
+  } catch (...) {
+    return std::unexpected(error::internal);
+  }
+}
+
+fn vm::set_nvram(std::uint32_t kilobytes) noexcept -> result<void> {
+  return as_result(dyn_vm_set_nvram(handle_, kilobytes));
+}
+
+fn vm::set_sparse_mem(bool enabled) noexcept -> result<void> {
+  return as_result(dyn_vm_set_sparse_mem(handle_, enabled ? 1 : 0));
+}
+
+fn vm::set_conf_reg(std::uint32_t value) noexcept -> result<void> {
+  return as_result(dyn_vm_set_conf_reg(handle_, value));
+}
+
+fn vm::set_idle_pc(std::uint64_t value) noexcept -> result<void> {
+  return as_result(dyn_vm_set_idle_pc(handle_, value));
+}
+
+fn vm::set_con_tcp_port(std::uint16_t port) noexcept -> result<void> {
+  return as_result(dyn_vm_set_con_tcp_port(handle_, port));
+}
+
+fn vm::push_config(const std::vector<std::byte> *startup,
+                   const std::vector<std::byte> *private_config) noexcept
+    -> result<void> {
+  const auto *startup_data =
+      startup == nullptr
+          ? nullptr
+          : reinterpret_cast<const std::uint8_t *>(startup->data());
+  const auto *private_data =
+      private_config == nullptr
+          ? nullptr
+          : reinterpret_cast<const std::uint8_t *>(private_config->data());
+  return as_result(dyn_vm_push_config(
+      handle_, startup_data, startup == nullptr ? 0 : startup->size(),
+      private_data, private_config == nullptr ? 0 : private_config->size()));
+}
+
 fn vm::status() const noexcept -> result<vm_status> {
   dyn_vm_status value = DYN_VM_HALTED;
   const let status = dyn_vm_get_status(handle_, &value);
@@ -66,6 +129,27 @@ fn vm::set_ram(std::uint32_t megabytes) noexcept -> result<void> {
 fn vm::attach_nio(std::uint32_t slot, std::uint32_t port,
                   nio &endpoint) noexcept -> result<void> {
   return as_result(dyn_vm_attach_nio(handle_, slot, port, endpoint.handle_));
+}
+
+fn vm::add_card(std::uint32_t slot, std::string_view card) noexcept
+    -> result<void> {
+  try {
+    const std::string owned(card);
+    return as_result(dyn_vm_add_card(handle_, slot, owned.c_str()));
+  } catch (const std::bad_alloc &) {
+    return std::unexpected(error::out_of_memory);
+  } catch (...) {
+    return std::unexpected(error::internal);
+  }
+}
+
+fn vm::remove_card(std::uint32_t slot) noexcept -> result<void> {
+  return as_result(dyn_vm_remove_card(handle_, slot));
+}
+
+fn vm::detach_nio(std::uint32_t slot, std::uint32_t port) noexcept
+    -> result<void> {
+  return as_result(dyn_vm_detach_nio(handle_, slot, port));
 }
 
 fn vm::extract_config() noexcept -> result<vm_config_data> {

@@ -23,6 +23,8 @@
 #include "ptask.h"
 
 static pthread_t ptask_thread;
+static int ptask_running = 0;
+static int ptask_started = 0;
 static pthread_mutex_t ptask_mutex = PTHREAD_MUTEX_INITIALIZER;
 static ptask_t *ptask_list = NULL;
 static ptask_id_t ptask_current_id = 0;
@@ -41,6 +43,10 @@ static void *ptask_run(void *arg) {
 
   for (;;) {
     PTASK_LOCK();
+    if (!ptask_running) {
+      PTASK_UNLOCK();
+      break;
+    }
     for (task = ptask_list; task; task = task->next)
       task->cbk(task->object, task->arg);
     PTASK_UNLOCK();
@@ -63,6 +69,8 @@ static void *ptask_run(void *arg) {
     // usleep(ptask_sleep_time*1000);
   }
 
+  pthread_cond_destroy(&ucond);
+  pthread_mutex_destroy(&umutex);
   return NULL;
 }
 
@@ -113,13 +121,29 @@ int ptask_remove(ptask_id_t id) {
 
 /* Initialize ptask module */
 int ptask_init(u_int sleep_time) {
+  if (ptask_started)
+    return (0);
   if (sleep_time)
     ptask_sleep_time = sleep_time;
 
+  ptask_running = 1;
   if (pthread_create(&ptask_thread, NULL, ptask_run, NULL) != 0) {
+    ptask_running = 0;
     fprintf(stderr, "ptask_init: unable to create thread.\n");
     return (-1);
   }
 
+  ptask_started = 1;
   return (0);
+}
+
+void ptask_shutdown(void) {
+  if (!ptask_started)
+    return;
+
+  PTASK_LOCK();
+  ptask_running = 0;
+  PTASK_UNLOCK();
+  pthread_join(ptask_thread, NULL);
+  ptask_started = 0;
 }

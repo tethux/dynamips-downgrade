@@ -34,7 +34,9 @@ public:
   [[nodiscard]] result<void> add(nio &endpoint) noexcept;
 
 private:
-  explicit ethernet_switch(dyn_eth_switch *handle) noexcept : handle_(handle) {}
+  explicit ethernet_switch(dyn_eth_switch *handle) noexcept : handle_(handle) {
+    detail::handle_acquired();
+  }
 
   [[nodiscard]] dyn_eth_switch *release() noexcept {
     auto *handle = handle_;
@@ -43,8 +45,11 @@ private:
   }
 
   void reset() noexcept {
+    if (handle_ == nullptr)
+      return;
     dyn_eth_switch_release(handle_);
     handle_ = nullptr;
+    detail::handle_released();
   }
 
   dyn_eth_switch *handle_ = nullptr;

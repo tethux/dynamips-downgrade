@@ -51,6 +51,8 @@ static struct netio_rx_listener *netio_rxl_add_list = NULL;
 static netio_desc_t *netio_rxl_remove_list = NULL;
 static pthread_t netio_rxl_thread;
 static pthread_cond_t netio_rxl_cond;
+static int netio_rxl_running = 0;
+static int netio_rxl_started = 0;
 
 #define NETIO_RXL_LOCK() pthread_mutex_lock(&netio_rxl_mutex);
 #define NETIO_RXL_UNLOCK() pthread_mutex_unlock(&netio_rxl_mutex);
@@ -1545,6 +1547,11 @@ void *netio_rxl_gen_thread(void *arg) {
 
   for (;;) {
     NETIO_RXL_LOCK();
+    if (!netio_rxl_running) {
+      NETIO_RXL_UNLOCK();
+      break;
+    }
+    NETIO_RXL_UNLOCK();
 
     NETIO_RXQ_LOCK();
     /* Add the new waiting NIO to the active list */
@@ -1663,12 +1670,30 @@ int netio_rxl_remove(netio_desc_t *nio) {
 
 /* Initialize the RXL thread */
 int netio_rxl_init(void) {
+  if (netio_rxl_started)
+    return (0);
   pthread_cond_init(&netio_rxl_cond, NULL);
+  netio_rxl_running = 1;
 
   if (pthread_create(&netio_rxl_thread, NULL, netio_rxl_gen_thread, NULL)) {
+    netio_rxl_running = 0;
+    pthread_cond_destroy(&netio_rxl_cond);
     perror("netio_rxl_init: pthread_create");
     return (-1);
   }
 
+  netio_rxl_started = 1;
   return (0);
+}
+
+void netio_rxl_shutdown(void) {
+  if (!netio_rxl_started)
+    return;
+
+  NETIO_RXL_LOCK();
+  netio_rxl_running = 0;
+  NETIO_RXL_UNLOCK();
+  pthread_join(netio_rxl_thread, NULL);
+  pthread_cond_destroy(&netio_rxl_cond);
+  netio_rxl_started = 0;
 }

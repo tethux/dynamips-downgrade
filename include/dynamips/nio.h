@@ -28,9 +28,14 @@ dyn_result dyn_nio_create_udp(const char *name, uint16_t local_port,
 dyn_result dyn_nio_create_udp_auto(const char *name, const char *local_addr,
                                    uint16_t port_start, uint16_t port_end,
                                    dyn_nio **out_nio, uint16_t *out_local_port);
+dyn_result dyn_nio_create_tap(const char *name, const char *device,
+                              dyn_nio **out_nio);
+dyn_result dyn_nio_connect_udp_auto(dyn_nio *nio, const char *remote_host,
+                                    uint16_t remote_port);
+dyn_result dyn_nio_delete(dyn_nio **nio);
 void dyn_nio_release(dyn_nio *nio);
 dyn_result dyn_nio_get_stats(const dyn_nio *nio, dyn_nio_stats *out_stats);
-dyn_result dyn_nio_setup_filter(dyn_nio *nio, dyn_filter_direction direction,
+dyn_result dyn_nio_setup_filter(dyn_nio *nio, int32_t direction,
                                 size_t option_count,
                                 const char *const options[]);
 

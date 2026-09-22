@@ -49,6 +49,7 @@
 static pthread_mutex_t vtty_list_mutex = PTHREAD_MUTEX_INITIALIZER;
 static vtty_t *vtty_list = NULL;
 static pthread_t vtty_thread;
+static int vtty_thread_running = 0;
 
 #define VTTY_LIST_LOCK() pthread_mutex_lock(&vtty_list_mutex);
 #define VTTY_LIST_UNLOCK() pthread_mutex_unlock(&vtty_list_mutex);
@@ -1207,6 +1208,10 @@ static void *vtty_thread_main(void *arg) {
 
   for (;;) {
     VTTY_LIST_LOCK();
+    if (!vtty_thread_running) {
+      VTTY_LIST_UNLOCK();
+      break;
+    }
 
     /* Build the FD set */
     FD_ZERO(&rfds);
@@ -1298,10 +1303,23 @@ static void *vtty_thread_main(void *arg) {
 
 /* Initialize the VTTY thread */
 int vtty_init(void) {
+  VTTY_LIST_LOCK();
+  vtty_thread_running = 1;
+  VTTY_LIST_UNLOCK();
   if (pthread_create(&vtty_thread, NULL, vtty_thread_main, NULL)) {
+    VTTY_LIST_LOCK();
+    vtty_thread_running = 0;
+    VTTY_LIST_UNLOCK();
     perror("vtty: pthread_create");
     return (-1);
   }
 
   return (0);
+}
+
+void vtty_shutdown(void) {
+  VTTY_LIST_LOCK();
+  vtty_thread_running = 0;
+  VTTY_LIST_UNLOCK();
+  pthread_join(vtty_thread, NULL);
 }

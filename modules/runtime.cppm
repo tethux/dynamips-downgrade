@@ -38,7 +38,7 @@ private:
   void reset() noexcept {
     if (!active_)
       return;
-    dyn_runtime_shutdown();
+    detail::runtime_released();
     active_ = false;
   }
 

@@ -154,19 +154,20 @@ static void setup_signals(void) {
 }
 
 /* Create general log file */
-static void create_log_file(void) {
+static dyn_result create_log_file(void) {
   /* Set the default value of the log file name */
   if (!log_file_name) {
     if (!(log_file_name = strdup(LOGFILE_DEFAULT_NAME))) {
       fprintf(stderr, "Unable to set log file name.\n");
-      exit(EXIT_FAILURE);
+      return DYN_ERR_OUT_OF_MEMORY;
     }
   }
 
   if (!(log_file = fopen(log_file_name, "w"))) {
     fprintf(stderr, "Unable to create log file (%s).\n", strerror(errno));
-    exit(EXIT_FAILURE);
+    return DYN_ERR_IO;
   }
+  return DYN_OK;
 }
 
 /* Close general log file */
@@ -894,6 +895,7 @@ static int runtime_init_attempted = 0;
 int dyn_runtime_is_initialized(void) { return (runtime_initialized); }
 
 static dyn_result runtime_init(int embedded, int argc, char *argv[]) {
+  dyn_result status;
   if (runtime_init_attempted)
     return (DYN_ERR_ALREADY_INITIALIZED);
 
@@ -919,7 +921,8 @@ static dyn_result runtime_init(int embedded, int argc, char *argv[]) {
   register_default_platforms();
 
   /* Initialize timers */
-  timer_init();
+  if (timer_init() == -1)
+    return DYN_ERR_START_FAILED;
 
   /* Initialize object registry */
   registry_init();
@@ -931,13 +934,19 @@ static dyn_result runtime_init(int embedded, int argc, char *argv[]) {
   crc_init();
 
   /* Initialize NetIO code */
-  netio_rxl_init();
+  if (netio_rxl_init() == -1) {
+    status = DYN_ERR_START_FAILED;
+    goto fail_timer;
+  }
 
   /* Initialize NetIO packet filters */
   netio_filter_load_all();
 
   /* Initialize VTTY code */
-  vtty_init();
+  if (vtty_init() == -1) {
+    status = DYN_ERR_START_FAILED;
+    goto fail_netio;
+  }
 
   if (!embedded) {
     atexit(destroy_cmd_line_vars);
@@ -946,11 +955,15 @@ static dyn_result runtime_init(int embedded, int argc, char *argv[]) {
   }
 
   /* Create general log file */
-  create_log_file();
+  status = create_log_file();
+  if (status != DYN_OK)
+    goto fail_vtty;
 
   /* Periodic tasks initialization */
-  if (ptask_init(0) == -1)
-    return (DYN_ERR_START_FAILED);
+  if (ptask_init(0) == -1) {
+    status = DYN_ERR_START_FAILED;
+    goto fail_log;
+  }
 
   /* Create instruction lookup tables */
   mips64_jit_create_ilt();
@@ -958,10 +971,22 @@ static dyn_result runtime_init(int embedded, int argc, char *argv[]) {
   ppc32_jit_create_ilt();
   ppc32_exec_create_ilt();
 
-  setup_signals();
+  if (!embedded)
+    setup_signals();
 
   runtime_initialized = 1;
   return (DYN_OK);
+
+fail_log:
+  close_log_file();
+fail_vtty:
+  vtty_shutdown();
+fail_netio:
+  netio_rxl_shutdown();
+fail_timer:
+  timer_flush_queues();
+  destroy_cmd_line_vars();
+  return status;
 }
 
 dyn_result dyn_runtime_init(int argc, char *argv[]) {
@@ -975,6 +1000,10 @@ void dyn_runtime_shutdown(void) {
     return;
 
   dynamips_reset();
+  vtty_shutdown();
+  netio_rxl_shutdown();
+  ptask_shutdown();
+  timer_flush_queues();
   close_log_file();
   destroy_cmd_line_vars();
   runtime_initialized = 0;

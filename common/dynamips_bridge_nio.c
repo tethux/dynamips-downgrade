@@ -3,6 +3,9 @@
 #include "net_io.h"
 #include "net_io_filter.h"
 
+#include <stdlib.h>
+#include <string.h>
+
 dyn_core_nio *dyn_core_nio_create_udp(const char *name, uint16_t local_port,
                                       const char *remote_host,
                                       uint16_t remote_port) {
@@ -16,6 +19,33 @@ dyn_core_nio *dyn_core_nio_create_udp_auto(const char *name,
                                            uint16_t port_end) {
   return ((dyn_core_nio *)netio_desc_create_udp_auto(
       (char *)name, (char *)local_addr, port_start, port_end));
+}
+
+dyn_core_nio *dyn_core_nio_create_tap(const char *name, const char *device) {
+  return (dyn_core_nio *)netio_desc_create_tap((char *)name, (char *)device);
+}
+
+int dyn_core_nio_connect_udp_auto(dyn_core_nio *value, const char *host,
+                                  uint16_t port) {
+  netio_desc_t *nio = (netio_desc_t *)value;
+  if (nio->type != NETIO_TYPE_UDP_AUTO || nio->u.nid.remote_host != NULL)
+    return -2;
+  return netio_udp_auto_connect(nio, (char *)host, port);
+}
+
+int dyn_core_nio_delete_owned(dyn_core_nio *value) {
+  netio_desc_t *nio = (netio_desc_t *)value;
+  char *name = strdup(nio->name);
+  int status;
+
+  if (!name)
+    return -2;
+  netio_release(name);
+  status = netio_delete(name);
+  if (status != 1)
+    netio_acquire(name);
+  free(name);
+  return status;
 }
 
 int dyn_core_nio_udp_auto_local_port(const dyn_core_nio *nio) {

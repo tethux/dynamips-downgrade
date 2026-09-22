@@ -57,6 +57,53 @@ fn nio::create_udp_auto(std::string_view name, std::string_view local_addr,
   }
 }
 
+fn nio::create_tap(std::string_view name, std::string_view device) noexcept
+    -> result<nio> {
+  try {
+    if (name.find('\0') != std::string_view::npos ||
+        device.find('\0') != std::string_view::npos)
+      return std::unexpected(error::invalid_argument);
+    const std::string owned_name(name);
+    const std::string owned_device(device);
+    dyn_nio *handle = nullptr;
+    const let status =
+        dyn_nio_create_tap(owned_name.c_str(), owned_device.c_str(), &handle);
+    if (status != DYN_OK)
+      return std::unexpected(to_error(status));
+    return nio(handle);
+  } catch (const std::bad_alloc &) {
+    return std::unexpected(error::out_of_memory);
+  } catch (...) {
+    return std::unexpected(error::internal);
+  }
+}
+
+fn nio::connect_udp_auto(std::string_view remote_host,
+                         std::uint16_t remote_port) noexcept -> result<void> {
+  try {
+    if (remote_host.find('\0') != std::string_view::npos)
+      return std::unexpected(error::invalid_argument);
+    const std::string owned_host(remote_host);
+    const let status =
+        dyn_nio_connect_udp_auto(handle_, owned_host.c_str(), remote_port);
+    if (status != DYN_OK)
+      return std::unexpected(to_error(status));
+    return {};
+  } catch (const std::bad_alloc &) {
+    return std::unexpected(error::out_of_memory);
+  } catch (...) {
+    return std::unexpected(error::internal);
+  }
+}
+
+fn nio::remove() noexcept -> result<void> {
+  const let status = dyn_nio_delete(&handle_);
+  if (status != DYN_OK)
+    return std::unexpected(to_error(status));
+  detail::handle_released();
+  return {};
+}
+
 fn nio::stats() const noexcept -> result<nio_stats> {
   dyn_nio_stats value{};
   const let status = dyn_nio_get_stats(handle_, &value);
@@ -82,7 +129,7 @@ fn nio::setup_filter(filter_direction direction,
     for (const auto &option : owned)
       argv.push_back(option.c_str());
     const let status = dyn_nio_setup_filter(
-        handle_, static_cast<dyn_filter_direction>(direction), argv.size(),
+        handle_, static_cast<std::int32_t>(direction), argv.size(),
         argv.data());
     if (status != DYN_OK)
       return std::unexpected(to_error(status));

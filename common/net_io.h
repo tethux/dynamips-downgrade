@@ -340,5 +340,6 @@ int netio_rxl_remove(netio_desc_t *nio);
 
 /* Initialize the RXL thread */
 int netio_rxl_init(void);
+void netio_rxl_shutdown(void);
 
 #endif

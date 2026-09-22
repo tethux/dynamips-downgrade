@@ -14,10 +14,147 @@ scope:
      set_aux_tcp_port, clean_delete, oir_start, oir_stop, ghost_support]
 
 unresolved:
-  delete: "Must consume the public handle on success; resolve registry references first."
   console: "Resolve console ownership and event semantics before adding callbacks."
+  delete: "When another native reference prevents deletion, the handle is restored and deletion returns invalid_state. Registry destructor failure is detected by checking whether the entry remains."
 
 operations:
+  - {module: vm, operation: slot_add_binding, classification: required, c_name: dyn_vm_add_card, cpp_name: dynamips::vm::add_card, go_name: dynamips.VM.AddCard, args: [{name: slot, type: uint32}, {name: card, type: string}], errors: [invalid_argument, not_initialized, binding_failed, internal], source: {cli: stable/hv_vm.c:cmd_slot_add_binding, core: [vm_slot_add_binding]}}
+  - {module: vm, operation: slot_remove_binding, classification: required, c_name: dyn_vm_remove_card, cpp_name: dynamips::vm::remove_card, go_name: dynamips.VM.RemoveCard, args: [{name: slot, type: uint32}], errors: [invalid_argument, not_initialized, binding_failed, internal], source: {cli: stable/hv_vm.c:cmd_slot_remove_binding, core: [vm_slot_remove_binding, vm_slot_remove_all_nio_bindings]}}
+  - {module: vm, operation: slot_remove_nio_binding, classification: required, c_name: dyn_vm_detach_nio, cpp_name: dynamips::vm::detach_nio, go_name: dynamips.VM.DetachNIO, args: [{name: slot, type: uint32}, {name: port, type: uint32}], errors: [invalid_argument, not_initialized, binding_failed, internal], source: {cli: stable/hv_vm.c:cmd_slot_remove_nio_binding, core: [vm_slot_remove_nio_binding]}}
+  - module: vm
+    operation: delete
+    classification: required
+    c_name: dyn_vm_delete
+    cpp_name: dynamips::vm::delete_instance
+    go_name: dynamips.VM.Delete
+    args: [{name: vm, type: "handle<vm>", ownership: consumed_on_success}]
+    returns: {type: void}
+    errors: [invalid_argument, not_initialized, invalid_state, internal]
+    threading: {requires_runtime: true, blocking: true}
+    source: {cli: stable/hv_vm.c:cmd_delete, core: [vm_release, vm_delete_instance, vm_acquire]}
+
+  - module: vm
+    operation: suspend
+    classification: required
+    c_name: dyn_vm_suspend
+    cpp_name: dynamips::vm::suspend
+    go_name: dynamips.VM.Suspend
+    args: [{name: vm, type: "handle<vm>", ownership: borrowed}]
+    returns: {type: void}
+    errors: [invalid_argument, not_initialized, invalid_state, internal]
+    threading: {requires_runtime: true, blocking: true}
+    source: {cli: stable/hv_vm.c:cmd_suspend, core: [vm_suspend]}
+
+  - module: vm
+    operation: resume
+    classification: required
+    c_name: dyn_vm_resume
+    cpp_name: dynamips::vm::resume
+    go_name: dynamips.VM.Resume
+    args: [{name: vm, type: "handle<vm>", ownership: borrowed}]
+    returns: {type: void}
+    errors: [invalid_argument, not_initialized, invalid_state, internal]
+    threading: {requires_runtime: true, blocking: true}
+    source: {cli: stable/hv_vm.c:cmd_resume, core: [vm_resume]}
+
+  - module: vm
+    operation: set_ios
+    classification: required
+    c_name: dyn_vm_set_ios
+    cpp_name: dynamips::vm::set_ios
+    go_name: dynamips.VM.SetIOS
+    args:
+      - {name: vm, type: "handle<vm>", ownership: borrowed}
+      - {name: path, type: string, ownership: copied}
+    returns: {type: void}
+    errors: [invalid_argument, not_initialized, out_of_memory, internal]
+    threading: {requires_runtime: true, blocking: false}
+    source: {cli: stable/hv_vm.c:cmd_set_ios, core: [vm_ios_set_image]}
+
+  - module: vm
+    operation: set_nvram
+    classification: required
+    c_name: dyn_vm_set_nvram
+    cpp_name: dynamips::vm::set_nvram
+    go_name: dynamips.VM.SetNVRAM
+    args:
+      - {name: vm, type: "handle<vm>", ownership: borrowed}
+      - {name: kilobytes, type: uint32}
+    returns: {type: void}
+    errors: [invalid_argument, not_initialized]
+    threading: {requires_runtime: true, blocking: false}
+    source: {cli: stable/hv_vm.c:cmd_set_nvram, core: [vm_instance_t.nvram_size]}
+
+  - module: vm
+    operation: set_sparse_mem
+    classification: required
+    c_name: dyn_vm_set_sparse_mem
+    cpp_name: dynamips::vm::set_sparse_mem
+    go_name: dynamips.VM.SetSparseMemory
+    args:
+      - {name: vm, type: "handle<vm>", ownership: borrowed}
+      - {name: enabled, type: bool}
+    returns: {type: void}
+    errors: [invalid_argument, not_initialized]
+    threading: {requires_runtime: true, blocking: false}
+    source: {cli: stable/hv_vm.c:cmd_set_sparse_mem, core: [vm_instance_t.sparse_mem]}
+
+  - module: vm
+    operation: set_conf_reg
+    classification: required
+    c_name: dyn_vm_set_conf_reg
+    cpp_name: dynamips::vm::set_conf_reg
+    go_name: dynamips.VM.SetConfigRegister
+    args:
+      - {name: vm, type: "handle<vm>", ownership: borrowed}
+      - {name: value, type: uint32}
+    returns: {type: void}
+    errors: [invalid_argument, not_initialized]
+    threading: {requires_runtime: true, blocking: false}
+    source: {cli: stable/hv_vm.c:cmd_set_conf_reg, core: [vm_instance_t.conf_reg_setup]}
+
+  - module: vm
+    operation: set_idle_pc
+    classification: required
+    c_name: dyn_vm_set_idle_pc
+    cpp_name: dynamips::vm::set_idle_pc
+    go_name: dynamips.VM.SetIdlePC
+    args:
+      - {name: vm, type: "handle<vm>", ownership: borrowed}
+      - {name: value, type: uint64}
+    returns: {type: void}
+    errors: [invalid_argument, not_initialized]
+    threading: {requires_runtime: true, blocking: false}
+    source: {cli: stable/hv_vm.c:cmd_set_idle_pc, core: [vm_instance_t.idle_pc]}
+
+  - module: vm
+    operation: set_con_tcp_port
+    classification: required
+    c_name: dyn_vm_set_con_tcp_port
+    cpp_name: dynamips::vm::set_con_tcp_port
+    go_name: dynamips.VM.SetConsoleTCPPort
+    args:
+      - {name: vm, type: "handle<vm>", ownership: borrowed}
+      - {name: port, type: uint16}
+    returns: {type: void}
+    errors: [invalid_argument, not_initialized]
+    threading: {requires_runtime: true, blocking: false}
+    source: {cli: stable/hv_vm.c:cmd_set_con_tcp_port, core: [vm_instance_t.vtty_con_type, vm_instance_t.vtty_con_tcp_port]}
+
+  - module: vm
+    operation: push_config
+    classification: required
+    c_name: dyn_vm_push_config
+    cpp_name: dynamips::vm::push_config
+    go_name: dynamips.VM.PushConfig
+    args:
+      - {name: vm, type: "handle<vm>", ownership: borrowed}
+      - {name: startup, type: optional_bytes, ownership: borrowed}
+      - {name: private, type: optional_bytes, ownership: borrowed}
+    returns: {type: void}
+    errors: [invalid_argument, not_initialized, unsupported, io, internal]
+    threading: {requires_runtime: true, blocking: true}
+    source: {cli: stable/hv_vm.c:cmd_push_config, core: [vm_platform_t.nvram_push_config]}
   - module: vm
     operation: create
     classification: required
@@ -98,7 +235,7 @@ operations:
       core: [vm_instance_t.ram_size, c7200_t.npe400_ram_size]
 
   - module: vm
-    operation: attach_nio
+    operation: slot_add_nio_binding
     classification: required
     c_name: dyn_vm_attach_nio
     cpp_name: dynamips::vm::attach_nio

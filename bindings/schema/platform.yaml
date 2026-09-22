@@ -7,8 +7,42 @@ scope:
     [list, get_mac_addr, show_hardware, temp_sensor, power_supply, system_id,
      atm_switch, atm_bridge, frame_relay_switch]
 
-unresolved:
-  c7200: "Use a checked platform cast before accessing C7200 state."
+platform_cast:
+  c7200: "Check the registered platform name and hardware data before VM_C7200."
 
 operations:
-  []
+  - module: platform
+    operation: c7200_set_npe
+    classification: required
+    c_name: dyn_c7200_set_npe
+    cpp_name: dynamips::c7200::set_npe
+    go_name: dynamips.VM.SetC7200NPE
+    args: [{name: vm, type: "handle<vm>", ownership: borrowed}, {name: type, type: string}]
+    returns: {type: void}
+    errors: [invalid_argument, not_initialized, unsupported, invalid_state, internal]
+    threading: {requires_runtime: true, blocking: false}
+    source: {cli: common/hv_c7200.c:cmd_set_npe, core: [c7200_npe_set_type]}
+
+  - module: platform
+    operation: c7200_set_midplane
+    classification: required
+    c_name: dyn_c7200_set_midplane
+    cpp_name: dynamips::c7200::set_midplane
+    go_name: dynamips.VM.SetC7200Midplane
+    args: [{name: vm, type: "handle<vm>", ownership: borrowed}, {name: type, type: string}]
+    returns: {type: void}
+    errors: [invalid_argument, not_initialized, unsupported, invalid_state, internal]
+    threading: {requires_runtime: true, blocking: false}
+    source: {cli: common/hv_c7200.c:cmd_set_midplane, core: [c7200_midplane_set_type]}
+
+  - module: platform
+    operation: c7200_set_mac_addr
+    classification: required
+    c_name: dyn_c7200_set_mac_addr
+    cpp_name: dynamips::c7200::set_mac_addr
+    go_name: dynamips.VM.SetC7200MACAddr
+    args: [{name: vm, type: "handle<vm>", ownership: borrowed}, {name: mac, type: mac_address}]
+    returns: {type: void}
+    errors: [invalid_argument, not_initialized, unsupported, invalid_state, internal]
+    threading: {requires_runtime: true, blocking: false}
+    source: {cli: common/hv_c7200.c:cmd_set_mac_addr, core: [c7200_midplane_set_mac_addr]}

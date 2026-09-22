@@ -7,8 +7,7 @@ scope:
   deferred: [create_unix, create_vde, create_fifo, create_gen_eth, create_linux_eth, create_null]
   legacy_only: [rename, list, set_debug]
 
-unresolved:
-  delete: "Resolve registry references and attached endpoint ownership."
+unresolved: {}
 
 operations:
   - module: nio
@@ -79,3 +78,52 @@ operations:
     source:
       cli: common/hv_nio.c:cmd_setup_filter
       core: [netio_filter_setup]
+
+  - module: nio
+    operation: connect_udp_auto
+    classification: required
+    c_name: dyn_nio_connect_udp_auto
+    cpp_name: dynamips::nio::connect_udp_auto
+    go_name: dynamips.NIO.ConnectUDPAuto
+    args:
+      - {name: nio, type: "handle<nio>", ownership: borrowed}
+      - {name: remote_host, type: string}
+      - {name: remote_port, type: port}
+    returns: {type: void}
+    errors: [invalid_argument, not_initialized, invalid_state, create_failed, internal]
+    threading: {requires_runtime: true, blocking: false}
+    source:
+      cli: common/hv_nio.c:cmd_connect_udp_auto
+      core: [netio_udp_auto_connect]
+
+  - module: nio
+    operation: create_tap
+    classification: required
+    c_name: dyn_nio_create_tap
+    cpp_name: dynamips::nio::create_tap
+    go_name: dynamips.Runtime.CreateTAP
+    args:
+      - {name: name, type: string}
+      - {name: device, type: string}
+    returns: {type: "handle<nio>", ownership: registry_reference}
+    errors: [invalid_argument, not_initialized, out_of_memory, create_failed, internal]
+    threading: {requires_runtime: true, blocking: false}
+    source:
+      cli: common/hv_nio.c:cmd_create_tap
+      core: [netio_desc_create_tap]
+
+  - module: nio
+    operation: delete
+    classification: required
+    c_name: dyn_nio_delete
+    cpp_name: dynamips::nio::remove
+    go_name: dynamips.NIO.Delete
+    args:
+      - {name: nio, type: "handle<nio>", ownership: consumed_on_success}
+    returns: {type: void}
+    errors: [invalid_argument, not_initialized, out_of_memory, invalid_state, internal]
+    threading: {requires_runtime: true, blocking: false}
+    ownership: "Release the public registry reference, then delete only at refcount zero. Restore the reference if attachments still own the object. The handle is consumed only on success."
+    source:
+      cli: common/hv_nio.c:cmd_delete
+      core: [netio_release, netio_delete, netio_acquire]

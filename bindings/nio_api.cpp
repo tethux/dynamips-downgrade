@@ -95,6 +95,73 @@ cfn dyn_nio_release(dyn_nio *nio) -> void {
   }
 }
 
+cfn dyn_nio_create_tap(const char *name, const char *device, dyn_nio **out_nio)
+    -> dyn_result {
+  try {
+    if (out_nio == nullptr)
+      return DYN_ERR_INVALID_ARGUMENT;
+    *out_nio = nullptr;
+    if (dyn_invalid_text(name) || device == nullptr)
+      return DYN_ERR_INVALID_ARGUMENT;
+    if (const let status = dyn_require_runtime(); status != DYN_OK)
+      return status;
+    let *value = dyn_core_nio_create_tap(name, device);
+    if (value == nullptr)
+      return DYN_ERR_CREATE_FAILED;
+    let *handle = new (std::nothrow) dyn_nio{value};
+    if (handle == nullptr) {
+      dyn_core_nio_release(value);
+      dyn_core_nio_delete(name);
+      return DYN_ERR_OUT_OF_MEMORY;
+    }
+    *out_nio = handle;
+    return DYN_OK;
+  } catch (const std::bad_alloc &) {
+    return DYN_ERR_OUT_OF_MEMORY;
+  } catch (...) {
+    return DYN_ERR_INTERNAL;
+  }
+}
+
+cfn dyn_nio_connect_udp_auto(dyn_nio *nio, const char *remote_host,
+                             uint16_t remote_port) -> dyn_result {
+  try {
+    if (nio == nullptr || nio->value == nullptr ||
+        dyn_invalid_text(remote_host) || remote_port == 0)
+      return DYN_ERR_INVALID_ARGUMENT;
+    if (const let status = dyn_require_runtime(); status != DYN_OK)
+      return status;
+    const let status =
+        dyn_core_nio_connect_udp_auto(nio->value, remote_host, remote_port);
+    if (status == -2)
+      return DYN_ERR_INVALID_STATE;
+    return status == 0 ? DYN_OK : DYN_ERR_CREATE_FAILED;
+  } catch (...) {
+    return DYN_ERR_INTERNAL;
+  }
+}
+
+cfn dyn_nio_delete(dyn_nio **nio) -> dyn_result {
+  try {
+    if (nio == nullptr)
+      return DYN_ERR_INVALID_ARGUMENT;
+    if (*nio == nullptr || (*nio)->value == nullptr)
+      return DYN_ERR_INVALID_ARGUMENT;
+    if (const let status = dyn_require_runtime(); status != DYN_OK)
+      return status;
+    const let status = dyn_core_nio_delete_owned((*nio)->value);
+    if (status == -2)
+      return DYN_ERR_OUT_OF_MEMORY;
+    if (status != 1)
+      return DYN_ERR_INVALID_STATE;
+    delete *nio;
+    *nio = nullptr;
+    return DYN_OK;
+  } catch (...) {
+    return DYN_ERR_INTERNAL;
+  }
+}
+
 cfn dyn_nio_get_stats(const dyn_nio *nio, dyn_nio_stats *out_stats)
     -> dyn_result {
   try {
@@ -112,7 +179,7 @@ cfn dyn_nio_get_stats(const dyn_nio *nio, dyn_nio_stats *out_stats)
   }
 }
 
-cfn dyn_nio_setup_filter(dyn_nio *nio, dyn_filter_direction direction,
+cfn dyn_nio_setup_filter(dyn_nio *nio, int32_t direction,
                          size_t option_count, const char *const options[])
     -> dyn_result {
   try {

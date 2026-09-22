@@ -34,6 +34,8 @@ public:
   [[nodiscard]] static result<udp_auto_result>
   create_udp_auto(std::string_view name, std::string_view local_addr,
                   std::uint16_t port_start, std::uint16_t port_end) noexcept;
+  [[nodiscard]] static result<nio> create_tap(std::string_view name,
+                                              std::string_view device) noexcept;
 
   nio(const nio &) = delete;
   nio &operator=(const nio &) = delete;
@@ -54,11 +56,17 @@ public:
   [[nodiscard]] result<void>
   setup_filter(filter_direction direction,
                std::span<const std::string_view> options) noexcept;
+  [[nodiscard]] result<void>
+  connect_udp_auto(std::string_view remote_host,
+                   std::uint16_t remote_port) noexcept;
+  [[nodiscard]] result<void> remove() noexcept;
 
 private:
   friend class vm;
   friend class ethernet_switch;
-  explicit nio(dyn_nio *handle) noexcept : handle_(handle) {}
+  explicit nio(dyn_nio *handle) noexcept : handle_(handle) {
+    detail::handle_acquired();
+  }
 
   [[nodiscard]] dyn_nio *release() noexcept {
     auto *handle = handle_;
@@ -67,8 +75,11 @@ private:
   }
 
   void reset() noexcept {
+    if (handle_ == nullptr)
+      return;
     dyn_nio_release(handle_);
     handle_ = nullptr;
+    detail::handle_released();
   }
 
   dyn_nio *handle_ = nullptr;

@@ -96,6 +96,150 @@ func (vm *VM) Stop() error {
 	return nil
 }
 
+// Delete removes the native VM and consumes this handle on success.
+func (vm *VM) Delete() error {
+	runtimeMu.Lock()
+	defer runtimeMu.Unlock()
+	if vm == nil || vm.handle == nil {
+		return operationError("delete VM", errs.ErrClosed, nil)
+	}
+	if status := C.dyn_vm_delete(&vm.handle); status != C.DYN_OK {
+		return nativeError("delete VM", status)
+	}
+	vm.runtime.refs--
+	return nil
+}
+
+// Suspend pauses a running VM.
+func (vm *VM) Suspend() error {
+	runtimeMu.Lock()
+	defer runtimeMu.Unlock()
+	if vm == nil || vm.handle == nil {
+		return operationError("suspend VM", errs.ErrClosed, nil)
+	}
+	if status := C.dyn_vm_suspend(vm.handle); status != C.DYN_OK {
+		return nativeError("suspend VM", status)
+	}
+	return nil
+}
+
+// Resume resumes a suspended VM.
+func (vm *VM) Resume() error {
+	runtimeMu.Lock()
+	defer runtimeMu.Unlock()
+	if vm == nil || vm.handle == nil {
+		return operationError("resume VM", errs.ErrClosed, nil)
+	}
+	if status := C.dyn_vm_resume(vm.handle); status != C.DYN_OK {
+		return nativeError("resume VM", status)
+	}
+	return nil
+}
+
+// SetIOS sets the IOS image path used when the VM starts.
+func (vm *VM) SetIOS(path string) error {
+	runtimeMu.Lock()
+	defer runtimeMu.Unlock()
+	if vm == nil || vm.handle == nil {
+		return operationError("set VM IOS", errs.ErrClosed, nil)
+	}
+	value := C.CString(path)
+	defer C.free(unsafe.Pointer(value))
+	if status := C.dyn_vm_set_ios(vm.handle, value); status != C.DYN_OK {
+		return nativeError("set VM IOS", status)
+	}
+	return nil
+}
+
+// SetNVRAM sets NVRAM size in kilobytes.
+func (vm *VM) SetNVRAM(kilobytes uint32) error {
+	runtimeMu.Lock()
+	defer runtimeMu.Unlock()
+	if vm == nil || vm.handle == nil {
+		return operationError("set VM NVRAM", errs.ErrClosed, nil)
+	}
+	if status := C.dyn_vm_set_nvram(vm.handle, C.uint32_t(kilobytes)); status != C.DYN_OK {
+		return nativeError("set VM NVRAM", status)
+	}
+	return nil
+}
+
+// SetSparseMemory controls sparse RAM allocation.
+func (vm *VM) SetSparseMemory(enabled bool) error {
+	runtimeMu.Lock()
+	defer runtimeMu.Unlock()
+	if vm == nil || vm.handle == nil {
+		return operationError("set VM sparse memory", errs.ErrClosed, nil)
+	}
+	value := C.int(0)
+	if enabled {
+		value = 1
+	}
+	if status := C.dyn_vm_set_sparse_mem(vm.handle, value); status != C.DYN_OK {
+		return nativeError("set VM sparse memory", status)
+	}
+	return nil
+}
+
+// SetConfigRegister sets the startup configuration register.
+func (vm *VM) SetConfigRegister(value uint32) error {
+	runtimeMu.Lock()
+	defer runtimeMu.Unlock()
+	if vm == nil || vm.handle == nil {
+		return operationError("set VM config register", errs.ErrClosed, nil)
+	}
+	if status := C.dyn_vm_set_conf_reg(vm.handle, C.uint32_t(value)); status != C.DYN_OK {
+		return nativeError("set VM config register", status)
+	}
+	return nil
+}
+
+// SetIdlePC sets the idle program counter.
+func (vm *VM) SetIdlePC(value uint64) error {
+	runtimeMu.Lock()
+	defer runtimeMu.Unlock()
+	if vm == nil || vm.handle == nil {
+		return operationError("set VM idle PC", errs.ErrClosed, nil)
+	}
+	if status := C.dyn_vm_set_idle_pc(vm.handle, C.uint64_t(value)); status != C.DYN_OK {
+		return nativeError("set VM idle PC", status)
+	}
+	return nil
+}
+
+// SetConsoleTCPPort selects a TCP console endpoint.
+func (vm *VM) SetConsoleTCPPort(port uint16) error {
+	runtimeMu.Lock()
+	defer runtimeMu.Unlock()
+	if vm == nil || vm.handle == nil {
+		return operationError("set VM console port", errs.ErrClosed, nil)
+	}
+	if status := C.dyn_vm_set_con_tcp_port(vm.handle, C.uint16_t(port)); status != C.DYN_OK {
+		return nativeError("set VM console port", status)
+	}
+	return nil
+}
+
+// PushConfig writes the supplied configs to the native NVRAM device. A nil slice keeps that config.
+func (vm *VM) PushConfig(startup, private []byte) error {
+	runtimeMu.Lock()
+	defer runtimeMu.Unlock()
+	if vm == nil || vm.handle == nil {
+		return operationError("push VM config", errs.ErrClosed, nil)
+	}
+	var startupPtr, privatePtr *C.uint8_t
+	if startup != nil {
+		startupPtr = (*C.uint8_t)(unsafe.Pointer(unsafe.SliceData(startup)))
+	}
+	if private != nil {
+		privatePtr = (*C.uint8_t)(unsafe.Pointer(unsafe.SliceData(private)))
+	}
+	if status := C.dyn_vm_push_config(vm.handle, startupPtr, C.size_t(len(startup)), privatePtr, C.size_t(len(private))); status != C.DYN_OK {
+		return nativeError("push VM config", status)
+	}
+	return nil
+}
+
 // Status returns the VM's current execution state.
 func (vm *VM) Status() (VMStatus, error) {
 	runtimeMu.Lock()
@@ -127,6 +271,34 @@ func (vm *VM) SetRAM(megabytes uint32) error {
 	return nil
 }
 
+// AddCard installs a card in a VM slot.
+func (vm *VM) AddCard(slot uint32, card string) error {
+	runtimeMu.Lock()
+	defer runtimeMu.Unlock()
+	if vm == nil || vm.handle == nil {
+		return operationError("add VM card", errs.ErrClosed, nil)
+	}
+	value := C.CString(card)
+	defer C.free(unsafe.Pointer(value))
+	if status := C.dyn_vm_add_card(vm.handle, C.uint32_t(slot), value); status != C.DYN_OK {
+		return nativeError("add VM card", status)
+	}
+	return nil
+}
+
+// RemoveCard removes a card and its NIO bindings from a VM slot.
+func (vm *VM) RemoveCard(slot uint32) error {
+	runtimeMu.Lock()
+	defer runtimeMu.Unlock()
+	if vm == nil || vm.handle == nil {
+		return operationError("remove VM card", errs.ErrClosed, nil)
+	}
+	if status := C.dyn_vm_remove_card(vm.handle, C.uint32_t(slot)); status != C.DYN_OK {
+		return nativeError("remove VM card", status)
+	}
+	return nil
+}
+
 // AttachNIO binds a NIO to a VM slot and port.
 func (vm *VM) AttachNIO(slot, port uint32, nio *NIO) error {
 	runtimeMu.Lock()
@@ -137,6 +309,19 @@ func (vm *VM) AttachNIO(slot, port uint32, nio *NIO) error {
 	}
 	if status := C.dyn_vm_attach_nio(vm.handle, C.uint32_t(slot), C.uint32_t(port), nio.handle); status != C.DYN_OK {
 		return nativeError("attach NIO to VM", status)
+	}
+	return nil
+}
+
+// DetachNIO removes a NIO binding from a VM slot and port.
+func (vm *VM) DetachNIO(slot, port uint32) error {
+	runtimeMu.Lock()
+	defer runtimeMu.Unlock()
+	if vm == nil || vm.handle == nil {
+		return operationError("detach NIO from VM", errs.ErrClosed, nil)
+	}
+	if status := C.dyn_vm_detach_nio(vm.handle, C.uint32_t(slot), C.uint32_t(port)); status != C.DYN_OK {
+		return nativeError("detach NIO from VM", status)
 	}
 	return nil
 }
