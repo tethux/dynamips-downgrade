@@ -2,6 +2,7 @@
 #define DYNAMIPS_PUBLIC_DYNAMIPS_H
 
 #include <stdint.h>
+#include <stddef.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -18,6 +19,8 @@ typedef enum dyn_result {
   DYN_ERR_STOP_FAILED = -7,
   DYN_ERR_INTERNAL = -8,
   DYN_ERR_BINDING_FAILED = -9,
+  DYN_ERR_UNSUPPORTED = -10,
+  DYN_ERR_IO = -11,
 } dyn_result;
 
 typedef struct dyn_vm dyn_vm;
@@ -38,6 +41,13 @@ typedef struct dyn_nio_stats {
   uint64_t bytes_out;
 } dyn_nio_stats;
 
+typedef struct dyn_bytes {
+  uint8_t *data;
+  size_t size;
+} dyn_bytes;
+
+void dyn_bytes_release(dyn_bytes *bytes);
+
 const char *dyn_result_message(dyn_result result);
 
 dyn_result dyn_runtime_init(int argc, char *argv[]);
@@ -53,6 +63,8 @@ dyn_result dyn_vm_get_status(const dyn_vm *vm, dyn_vm_status *out_status);
 dyn_result dyn_vm_set_ram(dyn_vm *vm, uint32_t megabytes);
 dyn_result dyn_vm_attach_nio(dyn_vm *vm, uint32_t slot, uint32_t port,
                              dyn_nio *nio);
+dyn_result dyn_vm_extract_config(dyn_vm *vm, dyn_bytes *out_startup,
+                                 dyn_bytes *out_private);
 
 dyn_result dyn_nio_create_udp(const char *name, uint16_t local_port,
                               const char *remote_host, uint16_t remote_port,

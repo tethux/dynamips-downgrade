@@ -22,6 +22,8 @@ int dyn_core_vm_get_status(const dyn_core_vm *vm, dyn_vm_status *out_status);
 void dyn_core_vm_set_ram(dyn_core_vm *vm, uint32_t megabytes);
 int dyn_core_vm_attach_nio(dyn_core_vm *vm, uint32_t slot, uint32_t port,
                            dyn_core_nio *nio);
+int dyn_core_vm_extract_config(dyn_core_vm *vm, dyn_bytes *out_startup,
+                               dyn_bytes *out_private);
 
 dyn_core_nio *dyn_core_nio_create_udp(const char *name, uint16_t local_port,
                                       const char *remote_host,

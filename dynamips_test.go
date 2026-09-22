@@ -34,6 +34,9 @@ func TestRuntimeVMAndUDP(t *testing.T) {
 	if setErr := vm.SetRAM(256); setErr != nil {
 		t.Fatalf("set VM RAM: %v", setErr)
 	}
+	if _, extractErr := vm.ExtractConfig(); !errors.Is(extractErr, errs.ErrIO) {
+		t.Fatalf("extract config without NVRAM: got %v, want ErrIO", extractErr)
+	}
 	if status, statusErr := vm.Status(); statusErr != nil || status != dynamips.VMHalted {
 		t.Fatalf("new VM status: got %v, %v; want halted", status, statusErr)
 	}

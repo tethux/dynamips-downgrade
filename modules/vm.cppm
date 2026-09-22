@@ -1,7 +1,9 @@
 module;
 
 #include <cstdint>
+#include <cstddef>
 #include <string_view>
+#include <vector>
 
 #include <dynamips/dynamips.h>
 
@@ -10,6 +12,11 @@ import :core;
 import :nio;
 
 export namespace dynamips {
+
+struct vm_config_data {
+  std::vector<std::byte> startup;
+  std::vector<std::byte> private_config;
+};
 
 enum class vm_status : int {
   halted = DYN_VM_HALTED,
@@ -45,6 +52,7 @@ public:
   [[nodiscard]] result<void> set_ram(std::uint32_t megabytes) noexcept;
   [[nodiscard]] result<void> attach_nio(std::uint32_t slot, std::uint32_t port,
                                         nio &endpoint) noexcept;
+  [[nodiscard]] result<vm_config_data> extract_config() noexcept;
 
 private:
   explicit vm(dyn_vm *handle) noexcept : handle_(handle) {}

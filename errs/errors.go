@@ -19,6 +19,10 @@ var (
 	ErrStopFailed = errors.New("stop failed")
 	// ErrBindingFailed reports failure to bind one object to another.
 	ErrBindingFailed = errors.New("binding failed")
+	// ErrUnsupported reports an operation unavailable on the VM platform.
+	ErrUnsupported = errors.New("unsupported")
+	// ErrIO reports failure to read or write native data.
+	ErrIO = errors.New("I/O error")
 	// ErrInUse reports a runtime with live VM or NIO references.
 	ErrInUse = errors.New("runtime still has open objects")
 	// ErrInternal reports an unexpected native failure.

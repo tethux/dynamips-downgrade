@@ -22,6 +22,10 @@ const char *dyn_result_message(dyn_result result) {
     return ("internal error");
   case DYN_ERR_BINDING_FAILED:
     return ("binding failed");
+  case DYN_ERR_UNSUPPORTED:
+    return ("unsupported");
+  case DYN_ERR_IO:
+    return ("I/O error");
   }
 
   return ("unknown error");

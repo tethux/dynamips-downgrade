@@ -2,6 +2,7 @@
 #include <dynamips/macros.h>
 
 #include <new>
+#include <cstdlib>
 
 #include "dynamips_bridge.h"
 
@@ -247,6 +248,40 @@ cfn dyn_vm_attach_nio(dyn_vm *vm, uint32_t slot, uint32_t port, dyn_nio *nio)
                ? DYN_OK
                : DYN_ERR_BINDING_FAILED;
   } catch (...) {
+    return DYN_ERR_INTERNAL;
+  }
+}
+
+cfn dyn_bytes_release(dyn_bytes *bytes) -> void {
+  if (bytes == nullptr)
+    return;
+  std::free(bytes->data);
+  *bytes = {};
+}
+
+cfn dyn_vm_extract_config(dyn_vm *vm, dyn_bytes *out_startup,
+                          dyn_bytes *out_private) -> dyn_result {
+  try {
+    if (out_startup != nullptr)
+      *out_startup = {};
+    if (out_private != nullptr)
+      *out_private = {};
+    if (out_startup == nullptr || out_private == nullptr ||
+        out_startup == out_private || vm == nullptr || vm->value == nullptr)
+      return DYN_ERR_INVALID_ARGUMENT;
+    if (const let status = require_runtime(); status != DYN_OK)
+      return status;
+    const let result =
+        dyn_core_vm_extract_config(vm->value, out_startup, out_private);
+    if (result == 0)
+      return DYN_OK;
+    dyn_bytes_release(out_startup);
+    dyn_bytes_release(out_private);
+    return result == -2 ? DYN_ERR_UNSUPPORTED : DYN_ERR_IO;
+  } catch (...) {
+    dyn_bytes_release(out_startup);
+    if (out_private != out_startup)
+      dyn_bytes_release(out_private);
     return DYN_ERR_INTERNAL;
   }
 }

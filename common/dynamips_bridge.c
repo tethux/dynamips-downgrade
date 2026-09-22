@@ -65,6 +65,19 @@ int dyn_core_vm_attach_nio(dyn_core_vm *vm, uint32_t slot, uint32_t port,
   return vm_slot_add_nio_binding((vm_instance_t *)vm, slot, port, nio->name);
 }
 
+int dyn_core_vm_extract_config(dyn_core_vm *value, dyn_bytes *out_startup,
+                               dyn_bytes *out_private) {
+  vm_instance_t *vm = (vm_instance_t *)value;
+
+  if (vm->platform->nvram_extract_config == NULL)
+    return (-2);
+  return vm->platform->nvram_extract_config(
+             vm, &out_startup->data, &out_startup->size, &out_private->data,
+             &out_private->size) == 0
+             ? 0
+             : -1;
+}
+
 dyn_core_nio *dyn_core_nio_create_udp(const char *name, uint16_t local_port,
                                       const char *remote_host,
                                       uint16_t remote_port) {

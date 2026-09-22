@@ -344,6 +344,10 @@ func nativeError(operation string, status C.dyn_result) error {
 		kind = errs.ErrStopFailed
 	case C.DYN_ERR_BINDING_FAILED:
 		kind = errs.ErrBindingFailed
+	case C.DYN_ERR_UNSUPPORTED:
+		kind = errs.ErrUnsupported
+	case C.DYN_ERR_IO:
+		kind = errs.ErrIO
 	default:
 		kind = errs.ErrInternal
 	}

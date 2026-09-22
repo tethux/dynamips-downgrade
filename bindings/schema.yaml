@@ -6,6 +6,7 @@ conventions:
     handles: opaque
     strings: borrowed_utf8_nul_terminated
     outputs: cleared_on_error
+    buffers: owned_native_buffer
   cpp:
     standard: c++23
     interface: module
@@ -80,6 +81,15 @@ types:
     c_type: dyn_nio_stats
     cpp_type: dynamips::nio_stats
     fields: [packets_in, packets_out, bytes_in, bytes_out]
+  bytes:
+    kind: buffer
+    c_type: dyn_bytes
+    ownership: owned
+    release: dyn_bytes_release
+  vm_config_data:
+    kind: struct
+    cpp_type: dynamips::vm_config_data
+    fields: [startup, private_config]
   udp_auto_result:
     kind: struct
     cpp_type: dynamips::udp_auto_result
@@ -95,6 +105,8 @@ errors:
   - stop_failed
   - internal
   - binding_failed
+  - unsupported
+  - io
 
 operations:
   - module: runtime
@@ -211,6 +223,20 @@ operations:
     source:
       cli: stable/hv_vm.c:cmd_slot_add_nio_binding
       core: [vm_slot_add_nio_binding]
+
+  - module: vm
+    operation: extract_config
+    c_name: dyn_vm_extract_config
+    cpp_name: dynamips::vm::extract_config
+    go_name: dynamips.VM.ExtractConfig
+    args:
+      - {name: vm, type: "handle<vm>", ownership: borrowed}
+    returns: {type: vm_config_data, ownership: copied_from_owned_native_buffers}
+    errors: [invalid_argument, not_initialized, unsupported, io, out_of_memory, internal]
+    threading: {requires_runtime: true, blocking: true}
+    source:
+      cli: stable/hv_vm.c:cmd_extract_config
+      core: [vm_platform_t.nvram_extract_config]
 
   - module: nio
     operation: create_udp
