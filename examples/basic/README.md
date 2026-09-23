@@ -1,5 +1,7 @@
 # C7200 boot example
 
+Go reference: [examples/basic](https://pkg.go.dev/github.com/tethux/dynamips-downgrade/examples/basic).
+
 Set the path to a local C7200 IOS image or zip archive:
 
 ```sh

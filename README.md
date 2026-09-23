@@ -1,5 +1,7 @@
 # Dynamips embedding experiment
 
+[![Go Reference](https://pkg.go.dev/badge/github.com/tethux/dynamips-downgrade.svg)](https://pkg.go.dev/github.com/tethux/dynamips-downgrade)
+
 This fork gives Tethux a typed C, C++23, and Go API for the stable Dynamips
 emulator. The public Go package is at the repository root. The old TCP
 hypervisor remains as a separate target for behavior comparisons; the
@@ -52,11 +54,10 @@ VM, NIO, and switch handles before closing it.
 See the [C7200 example](examples/basic/main.go) for a complete VM lifecycle,
 including shutdown and error cleanup.
 
-The package documentation will be available on
-[pkg.go.dev](https://pkg.go.dev/github.com/tethux/dynamips-downgrade), with
-separate pages for [typed errors](https://pkg.go.dev/github.com/tethux/dynamips-downgrade/errs)
-and the [example command](https://pkg.go.dev/github.com/tethux/dynamips-downgrade/examples/basic)
-after this version is published. Read the current API locally with:
+API reference: [dynamips](https://pkg.go.dev/github.com/tethux/dynamips-downgrade) ·
+[errs](https://pkg.go.dev/github.com/tethux/dynamips-downgrade/errs) ·
+[example command](https://pkg.go.dev/github.com/tethux/dynamips-downgrade/examples/basic).
+Read the current API locally with:
 
 ```sh
 mise exec -- go doc github.com/tethux/dynamips-downgrade
@@ -141,6 +142,3 @@ next steps are:
    supported JIT paths are measured. End with directories organized by
    runtime, CPU, devices, network, Cisco platforms, and console rather than
    the historical `common/` and `stable/` split.
-
-These are directions, not promised line counts. Each replacement needs IOS
-behavior, resource-use, and sanitizer comparisons against the current core.
