@@ -11,7 +11,7 @@
 }:
 stdenv.mkDerivation {
   pname = "dynamips-downgrade-native";
-  version = "0.2.25";
+  version = "0.2.26";
   inherit src;
 
   nativeBuildInputs = [
@@ -43,7 +43,8 @@ stdenv.mkDerivation {
 
   installPhase = ''
     runHook preInstall
-    xmake install -o "$out" dynamips-bindings dynamips-core
+    xmake install -o "$out" dynamips-bindings
+    xmake install -o "$out" dynamips-core
     runHook postInstall
   '';
 }

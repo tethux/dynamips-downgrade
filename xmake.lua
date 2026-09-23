@@ -1,5 +1,5 @@
 set_project("dynamips")
-set_version("0.2.25")
+set_version("0.2.26")
 set_languages("c23", "cxx23")
 set_toolchains("clang")
 
@@ -73,7 +73,7 @@ local function configure_dynamips_target(target_name)
         add_includedirs("common", code, generated_dir)
         add_includedirs("include", {public = true})
         add_defines(
-            'DYNAMIPS_VERSION="0.2.25"',
+            'DYNAMIPS_VERSION="0.2.26"',
             'JIT_ARCH="' .. jit_arch .. '"',
             "JIT_CPU=CPU_" .. jit_arch,
             'MIPS64_ARCH_INC_FILE="mips64_' .. jit_arch .. '_trans.h"',
