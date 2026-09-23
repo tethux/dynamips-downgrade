@@ -46,7 +46,15 @@ formatting.
 ## Go consumers
 
 On Linux amd64, the Go module includes the release archives and public headers.
-You can add it with `go get github.com/tethux/dynamips-downgrade` and build with
+In your own Go module, add the published version with:
+
+```sh
+go get github.com/tethux/dynamips-downgrade@v0.2.27
+```
+
+Import `github.com/tethux/dynamips-downgrade` in your Go code. The
+[standalone consumer example](examples/consumer/) has its own `go.mod` and
+fetches the published module rather than using this checkout. Build with
 `CGO_ENABLED=1`. Nix and Xmake are not needed by consumers. The final link
 still needs a C++ linker and the libelf, libpcap, and libnsl development
 libraries from your system. The Dynamips code is linked from static archives;
