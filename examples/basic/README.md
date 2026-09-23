@@ -1,13 +1,6 @@
 # C7200 boot example
 
-On Veya's laptop, the mise task selects
-`~/gns3Imgs/c7200-adventerprisek9-mz.124-24.T5.zip` by default:
-
-```sh
-mise run run:example
-```
-
-To use another extracted image or zip archive:
+Set the path to a local C7200 IOS image or zip archive:
 
 ```sh
 DYNAMIPS_IOS_IMAGE=/path/to/c7200-ios.zip mise run run:example

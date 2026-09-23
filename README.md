@@ -1,11 +1,11 @@
 # Dynamips embedding experiment
 
 This fork gives Tethux a typed C, C++23, and Go API for the stable Dynamips
-emulator. The public Go package is at the repository root, like
-[`shitnet`](https://github.com/tethux/shitnet). The old TCP hypervisor remains
-as a separate target for behavior comparisons; the embedding library does not
-link against its command handlers. The required, deferred, and legacy-only API
-scope lives in [`bindings/schema/`](bindings/schema/).
+emulator. The public Go package is at the repository root. The old TCP
+hypervisor remains as a separate target for behavior comparisons; the
+embedding library does not link against its command handlers. The required,
+deferred, and legacy-only API scope lives in
+[`bindings/schema/`](bindings/schema/).
 
 This is an experimental, AI-assisted learning project. AI agents helped with
 the binding backfill, refactor, and tests. I am using it to learn the emulator
@@ -62,28 +62,26 @@ vm.Close()
 return runtime.Close()
 ```
 
-Inspect [the Go API](https://pkg.go.dev/github.com/tethux/dynamips-downgrade)
-and [typed errors](https://pkg.go.dev/github.com/tethux/dynamips-downgrade/errs)
-locally with:
+The package documentation will be available on
+[pkg.go.dev](https://pkg.go.dev/github.com/tethux/dynamips-downgrade), with
+separate pages for [typed errors](https://pkg.go.dev/github.com/tethux/dynamips-downgrade/errs)
+and the [runnable example](https://pkg.go.dev/github.com/tethux/dynamips-downgrade/examples/basic)
+after this version is published. Read the current API locally with:
 
 ```sh
 mise exec -- go doc github.com/tethux/dynamips-downgrade
 mise exec -- go doc github.com/tethux/dynamips-downgrade/errs
 ```
 
-The hosted pages update after this work is published. The
-[runnable C7200 example](examples/basic/README.md) takes a local IOS image or
-zip archive and exposes its console. On this laptop, run:
+The [C7200 example](examples/basic/README.md) takes a local IOS image or zip
+archive and opens its console:
 
 ```sh
-mise run run:example
+DYNAMIPS_IOS_IMAGE=/path/to/c7200-ios.zip mise run run:example
 ```
 
-The task defaults to
-`~/gns3Imgs/c7200-adventerprisek9-mz.124-24.T5.zip`. Set
-`DYNAMIPS_IOS_IMAGE=/path/to/another-image-or-archive` to override it. The
-same terminal opens the IOS console. Type commands there; press Ctrl+] and
-enter `quit` when finished.
+The same terminal opens the IOS console. Press Enter after IOS boots, type
+commands there, then press Ctrl+] and enter `quit` when finished.
 
 ## IOS integration and current performance
 
@@ -97,9 +95,6 @@ Cisco images are not distributed here:
 DYNAMIPS_IOS_ARCHIVE=/path/to/c7200-ios.zip DYNAMIPS_IOS_RAM_MB=256 \
   mise run test:ios
 ```
-
-On this laptop, the archive is at
-`/home/veya/gns3Imgs/c7200-adventerprisek9-mz.124-24.T5.zip`.
 
 Six local C7200 archives passed on both paths on 2026-09-23. `IOS ready` is
 wall time from VM setup to a usable privileged prompt. CPU is user plus

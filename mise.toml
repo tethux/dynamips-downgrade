@@ -61,9 +61,12 @@ depends = ["build:native"]
 run = "xmake build -j \"${DYNAMIPS_BUILD_JOBS:-14}\" -y dynamips-module-test && xmake run dynamips-module-test"
 
 [tasks."run:example"]
-description = "run the Go bindings example"
+description = "boot a C7200 image and open its IOS console"
 depends = ["build:native"]
-run = "go run ./examples/basic -ios \"${DYNAMIPS_IOS_IMAGE:-${DYNAMIPS_IOS_ARCHIVE:-$HOME/gns3Imgs/c7200-adventerprisek9-mz.124-24.T5.zip}}\""
+run = """
+test -n "${DYNAMIPS_IOS_IMAGE:-}" || { echo 'set DYNAMIPS_IOS_IMAGE to a local C7200 IOS image or zip archive' >&2; exit 2; }
+go run ./examples/basic -ios "$DYNAMIPS_IOS_IMAGE"
+"""
 
 [tasks.compiledb]
 description = "generate clangd compile commands, including C++ modules"
