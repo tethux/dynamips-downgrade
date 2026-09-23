@@ -17,12 +17,14 @@ what I need.
 Christophe Fillot created Dynamips. Fabien Devaux, MtvE, Gordon Russell,
 Jeremy Grossmann, Flávio J. Saraiva, GNS3, and other contributors maintained
 and extended it. Daniel Lintott converted an earlier README to Markdown. The
-license is GPLv2 only; see [`LICENSE`](LICENSE).
+repository includes [`LICENSE`](LICENSE); individual source files also carry
+their own notices.
 
 ## Build and test
 
-The project uses xmake with Clang, C23, and C++23. Install libelf and libpcap
-development packages, then run:
+The project uses xmake with Clang, C23, and C++23. Install libelf development
+files; the Go binding also needs libpcap development files for linking. Then
+run:
 
 ```sh
 mise run build
@@ -47,25 +49,13 @@ It exposes VM lifecycle and configuration, cards, NIO, and C7200 settings.
 The embedded runtime is process wide and can be initialized only once. Close
 VM, NIO, and switch handles before closing it.
 
-```go
-runtime, err := dynamips.New()
-if err != nil {
-    return err
-}
-vm, err := runtime.CreateVM(dynamips.VMConfig{
-    Name: "router-1", InstanceID: 1, Platform: "c7200",
-})
-if err != nil {
-    return err
-}
-vm.Close()
-return runtime.Close()
-```
+See the [C7200 example](examples/basic/main.go) for a complete VM lifecycle,
+including shutdown and error cleanup.
 
 The package documentation will be available on
 [pkg.go.dev](https://pkg.go.dev/github.com/tethux/dynamips-downgrade), with
 separate pages for [typed errors](https://pkg.go.dev/github.com/tethux/dynamips-downgrade/errs)
-and the [runnable example](https://pkg.go.dev/github.com/tethux/dynamips-downgrade/examples/basic)
+and the [example command](https://pkg.go.dev/github.com/tethux/dynamips-downgrade/examples/basic)
 after this version is published. Read the current API locally with:
 
 ```sh
@@ -126,16 +116,31 @@ function pointer, shift, and null member checks.
 
 ## Roadmap
 
-The bindings are a bridge to a smaller emulator. Planned work includes:
+The bindings are a bridge to a smaller emulator. `unstable/` is already gone,
+and the old TCP hypervisor is isolated from the embedding library. Possible
+next steps are:
 
-- Replace the legacy network and console I/O loops with AIO, then remove
-  obsolete task and `rt` plumbing as their callers migrate.
-- Move shared data structures into C++ where ownership and types become
-  clearer, including replacing the custom `rbtree` with standard containers.
-- Generalize the device catalogue so platforms can compose the devices they
-  need without repeating registration code.
-- Consolidate CRC implementations and use maintained libraries through xrepo
-  where they fit the required algorithms and licenses.
-- Rewrite and remove legacy emulator code in tested slices, keeping only the
-  platforms and features Tethux uses. Compare IOS behavior, resource use, and
-  sanitizer results with the current stable core as each slice changes.
+1. Retire the hypervisor after the required API and IOS parity checks cover
+   the workflows Tethux uses. Drop unused host JIT targets as the supported
+   host and guest platforms become explicit.
+2. Replace the hand-written socket polling, console handling, timers, and
+   periodic task plumbing with [Asio](https://think-async.com/Asio/). Keep CPU
+   execution separate from the I/O event loop. Audit the `rt` linker dependency
+   and remove it if nothing needs it.
+3. Replace generic C utilities such as `rbtree` with suitable C++ standard
+   containers. Consolidate CRC code; use a library such as zlib through xrepo
+   for compatible algorithms, while retaining the small algorithms it does
+   not provide. Prefer xrepo packages to maintaining commodity code when the
+   dependency actually makes the project smaller.
+4. Make Cisco chassis, slots, cards, IRQ routing, and common FPGA register
+   layouts mostly data-driven. Share PCI, MMIO, memory-map, and device
+   lifecycle infrastructure, but keep genuinely different chip behavior in
+   separate implementations.
+5. Rewrite the remaining CPU, device, and networking code in tested slices.
+   Consider a common guest IR and a maintained code emitter only after the
+   supported JIT paths are measured. End with directories organized by
+   runtime, CPU, devices, network, Cisco platforms, and console rather than
+   the historical `common/` and `stable/` split.
+
+These are directions, not promised line counts. Each replacement needs IOS
+behavior, resource-use, and sanitizer comparisons against the current core.
