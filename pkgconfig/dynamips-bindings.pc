@@ -5,7 +5,7 @@ includedir=${prefix}/include
 
 Name: dynamips-bindings
 Description: Dynamips embedding bindings
-Version: 0.2.26
+Version: 0.2.27
 Requires: libelf libpcap
 Libs: -L${libdir} -ldynamips-bindings -ldynamips-core -lstdc++ -ldl -lrt -lnsl -lpthread
 Cflags: -I${includedir}

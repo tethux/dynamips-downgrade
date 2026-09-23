@@ -2,7 +2,7 @@ package dynamips
 
 /*
 #include <stdlib.h>
-#include <dynamips/dynamips.h>
+#include "dynamips.h"
 */
 import "C"
 

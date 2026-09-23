@@ -24,9 +24,8 @@ their own notices.
 
 ## Build and test
 
-The project uses xmake with Clang, C23, and C++23. Install libelf development
-files; the Go binding also needs libpcap development files for linking. Then
-run:
+The project uses xmake with Clang, C23, and C++23. Install libelf and libpcap
+development files to build the native code. Then run:
 
 ```sh
 mise run build
@@ -35,8 +34,8 @@ mise run lint:go
 mise run lint:cpp
 ```
 
-`mise run test` builds the native debug libraries and runs the C++ module and
-Go tests. `mise run lint:cpp` runs cppcheck on the new C/C++ embedding boundary
+`mise run test` runs the Go tests against the checked-in release archives.
+`mise run test:native` builds and tests the C++ module. `mise run lint:cpp` runs cppcheck on the new C/C++ embedding boundary
 and clang-tidy on `bindings/*.cpp`. It requires `clang-tidy`; mise provides
 cppcheck. The C++23 module partitions are checked by the Clang build because
 xmake's compilation database does not currently include their module commands
@@ -44,7 +43,19 @@ for clang-tidy. xmake compiles with 14 parallel jobs by default here; set
 `DYNAMIPS_BUILD_JOBS` to change the task setting. Use `mise run fmt:go` for Go
 formatting.
 
-## Native package for Go consumers
+## Go consumers
+
+On Linux amd64, the Go module includes the release archives and public headers.
+You can add it with `go get github.com/tethux/dynamips-downgrade` and build with
+`CGO_ENABLED=1`. Nix and Xmake are not needed by consumers. The final link
+still needs a C++ linker and the libelf, libpcap, and libnsl development
+libraries from your system. The Dynamips code is linked from static archives;
+the final executable may still use shared system libraries.
+
+`mise run package:go` rebuilds the checked-in archives from the current
+source before a Go module release.
+
+## Native install
 
 The file `pkgconfig/dynamips-bindings.pc` tells `pkg-config` where the installed
 headers and archives are and which libraries a final link needs. Xmake installs
@@ -57,9 +68,8 @@ mise exec -- xmake install -o /path/to/prefix dynamips-bindings dynamips-core
 PKG_CONFIG_PATH=/path/to/prefix/lib/pkgconfig pkg-config --cflags --libs dynamips-bindings
 ```
 
-Set `PKG_CONFIG_PATH` to that directory when building a Go consumer. For local
-development, `mise run test:go` builds and installs a debug copy under
-`build/install` and sets the path for its Go test command.
+Set `PKG_CONFIG_PATH` to that directory for native consumers using the
+installed archives. The Go module uses its own checked-in archives.
 
 ## Go API
 

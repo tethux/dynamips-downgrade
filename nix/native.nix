@@ -11,7 +11,7 @@
 }:
 stdenv.mkDerivation {
   pname = "dynamips-downgrade-native";
-  version = "0.2.26";
+  version = "0.2.27";
   inherit src;
 
   nativeBuildInputs = [

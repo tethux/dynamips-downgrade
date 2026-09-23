@@ -1,7 +1,7 @@
 package dynamips
 
 /*
-#include <dynamips/dynamips.h>
+#include "dynamips.h"
 */
 import "C"
 

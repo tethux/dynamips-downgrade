@@ -11,8 +11,7 @@ DYNAMIPS_IOS_IMAGE=/path/to/c7200-ios.zip mise run run:example
 The program also accepts RAM and console options directly:
 
 ```sh
-mise run build:native
-PKG_CONFIG_PATH="$PWD/build/install/lib/pkgconfig" mise exec -- go run ./examples/basic -ios /path/to/c7200-ios.bin -ram 512 -console-port 2001
+mise exec -- go run ./examples/basic -ios /path/to/c7200-ios.bin -ram 512 -console-port 2001
 ```
 
 The task opens `telnet` in the same terminal once the VM starts. Wait for

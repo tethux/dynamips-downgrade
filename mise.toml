@@ -20,13 +20,23 @@ description = "run the Go binding tests"
 depends = ["test:go"]
 
 [tasks."build:native"]
-description = "build the native library for Go"
+description = "build and install the native embedding libraries"
 run = "xmake f -m debug -y && xmake build -j \"${DYNAMIPS_BUILD_JOBS:-14}\" -y dynamips-bindings && xmake install -o \"$PWD/build/install\" dynamips-bindings dynamips-core"
+
+[tasks."package:go"]
+description = "rebuild the checked-in Linux amd64 archives"
+run = """
+test "$(uname -s)" = Linux && test "$(uname -m)" = x86_64 || { echo 'Go archives support Linux amd64 only' >&2; exit 2; }
+xmake f -m release --system_packages=y --enable_gen_eth=y -y
+xmake build -j "${DYNAMIPS_BUILD_JOBS:-14}" -y dynamips-bindings
+install -Dm644 build/linux/x86_64/release/libdynamips-bindings.a internal/binding/libdynamips-bindings_linux_amd64.a
+install -Dm644 build/linux/x86_64/release/libdynamips-core.a internal/binding/libdynamips-core_linux_amd64.a
+install -m644 include/dynamips/*.h internal/binding/
+"""
 
 [tasks."test:go"]
 description = "test the Go bindings"
-depends = ["test:native"]
-run = "PKG_CONFIG_PATH=\"$PWD/build/install/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}\" go test ./..."
+run = "go test ./..."
 
 [tasks."test:ios"]
 description = "boot a local C7200 IOS archive through embedded and legacy APIs"
@@ -35,13 +45,12 @@ test -n "${DYNAMIPS_IOS_ARCHIVE:-}" || { echo 'set DYNAMIPS_IOS_ARCHIVE to a loc
 xmake f -m debug -y
 xmake -j "${DYNAMIPS_BUILD_JOBS:-14}" -y
 xmake install -o "$PWD/build/install" dynamips-bindings dynamips-core
-PKG_CONFIG_PATH="$PWD/build/install/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}" go test ./internal/binding -run '^TestC7200IOSBootParity$' -count=1 -v -timeout=8m
+go test ./internal/binding -run '^TestC7200IOSBootParity$' -count=1 -v -timeout=8m
 """
 
 [tasks."lint:go"]
 description = "lint the Go bindings"
-depends = ["build:native"]
-run = "PKG_CONFIG_PATH=\"$PWD/build/install/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}\" golangci-lint run ./..."
+run = "golangci-lint run ./..."
 
 [tasks."lint:cppcheck"]
 description = "check the C and C++ embedding boundary"
@@ -63,10 +72,9 @@ run = "xmake build -j \"${DYNAMIPS_BUILD_JOBS:-14}\" -y dynamips-module-test && 
 
 [tasks."run:example"]
 description = "boot a C7200 image and open its IOS console"
-depends = ["build:native"]
 run = """
 test -n "${DYNAMIPS_IOS_IMAGE:-}" || { echo 'set DYNAMIPS_IOS_IMAGE to a local C7200 IOS image or zip archive' >&2; exit 2; }
-PKG_CONFIG_PATH="$PWD/build/install/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}" go run ./examples/basic -ios "$DYNAMIPS_IOS_IMAGE"
+go run ./examples/basic -ios "$DYNAMIPS_IOS_IMAGE"
 """
 
 [tasks.compiledb]

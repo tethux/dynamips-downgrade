@@ -1,9 +1,9 @@
 package dynamips
 
 /*
-#cgo pkg-config: dynamips-bindings
+#cgo linux,amd64 LDFLAGS: ${SRCDIR}/libdynamips-bindings_linux_amd64.a ${SRCDIR}/libdynamips-core_linux_amd64.a -lstdc++ -lelf -lpcap -ldl -lrt -lnsl -lpthread
 #include <stdlib.h>
-#include <dynamips/dynamips.h>
+#include "dynamips.h"
 */
 import "C"
 
