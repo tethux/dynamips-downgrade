@@ -123,3 +123,19 @@ commands. Valgrind found 0 bytes left at exit and no file descriptor growth
 after 300 VM create/delete and 300 UDP NIO create/delete cycles. Full UBSan
 runs are currently blocked by existing amd64 JIT operations that trigger
 function pointer, shift, and null member checks.
+
+## Roadmap
+
+The bindings are a bridge to a smaller emulator. Planned work includes:
+
+- Replace the legacy network and console I/O loops with AIO, then remove
+  obsolete task and `rt` plumbing as their callers migrate.
+- Move shared data structures into C++ where ownership and types become
+  clearer, including replacing the custom `rbtree` with standard containers.
+- Generalize the device catalogue so platforms can compose the devices they
+  need without repeating registration code.
+- Consolidate CRC implementations and use maintained libraries through xrepo
+  where they fit the required algorithms and licenses.
+- Rewrite and remove legacy emulator code in tested slices, keeping only the
+  platforms and features Tethux uses. Compare IOS behavior, resource use, and
+  sanitizer results with the current stable core as each slice changes.
