@@ -64,7 +64,7 @@ func TestC7200IOSBootParity(t *testing.T) {
 	if !ok {
 		t.Fatal("find integration test source")
 	}
-	binary := filepath.Join(filepath.Dir(source), "build", "linux", "x86_64", "debug", "dynamips")
+	binary := filepath.Join(filepath.Dir(source), "..", "..", "build", "linux", "x86_64", "debug", "dynamips")
 	if _, err := os.Stat(binary); err != nil {
 		t.Fatalf("legacy hypervisor executable %s: %v; run mise exec -- xmake build -y dynamips", binary, err)
 	}

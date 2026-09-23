@@ -4,9 +4,11 @@ set_languages("c23", "cxx23")
 set_toolchains("clang")
 
 add_rules("mode.debug", "mode.release")
-add_rules("plugin.compile_commands.autoupdate", {outputdir = "."})
+if not has_config("system_packages") then
+    add_rules("plugin.compile_commands.autoupdate", {outputdir = "."})
+end
 
-local default_jit_arch = os.arch() == "x86_64" and "amd64" or "nojit"
+local default_jit_arch = is_arch("x86_64") and "amd64" or "nojit"
 
 option("dynamips_arch")
     set_default(default_jit_arch)
@@ -27,9 +29,23 @@ option("enable_linux_eth")
     set_description("Enable Linux raw-socket Ethernet")
 option_end()
 
-add_requires("libelf")
+option("system_packages")
+    set_default(false)
+    set_showmenu(true)
+    set_description("Use only system libraries for external dependencies")
+option_end()
+
+if has_config("system_packages") then
+    add_requires("libelf", {system = true})
+else
+    add_requires("libelf")
+end
 if has_config("enable_gen_eth") then
-    add_requires("libpcap", {optional = true})
+    if has_config("system_packages") then
+        add_requires("libpcap", {system = true})
+    else
+        add_requires("libpcap", {optional = true})
+    end
 end
 
 local code = "stable"
@@ -133,6 +149,7 @@ configure_dynamips_target("dynamips-bindings")
     set_kind("static")
     add_deps("dynamips-core", {public = true})
     add_headerfiles("include/(dynamips/*.h)")
+    add_installfiles("pkgconfig/dynamips-bindings.pc", {prefixdir = "lib/pkgconfig"})
     add_files("modules/*.cppm", {public = true})
     add_files("bindings/*.cpp")
     add_files("common/dynamips_bridge_*.c")

@@ -44,6 +44,23 @@ for clang-tidy. xmake compiles with 14 parallel jobs by default here; set
 `DYNAMIPS_BUILD_JOBS` to change the task setting. Use `mise run fmt:go` for Go
 formatting.
 
+## Native package for Go consumers
+
+The file `pkgconfig/dynamips-bindings.pc` tells `pkg-config` where the installed
+headers and archives are and which libraries a final link needs. Xmake installs
+it alongside both static archives:
+
+```sh
+mise exec -- xmake f -m release -y
+mise exec -- xmake build -y dynamips-bindings
+mise exec -- xmake install -o /path/to/prefix dynamips-bindings dynamips-core
+PKG_CONFIG_PATH=/path/to/prefix/lib/pkgconfig pkg-config --cflags --libs dynamips-bindings
+```
+
+Set `PKG_CONFIG_PATH` to that directory when building a Go consumer. For local
+development, `mise run test:go` builds and installs a debug copy under
+`build/install` and sets the path for its Go test command.
+
 ## Go API
 
 The Go package initializes Dynamips without CLI options or a TCP hypervisor.
