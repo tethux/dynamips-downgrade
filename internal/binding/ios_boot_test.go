@@ -70,7 +70,9 @@ func TestC7200IOSBootParity(t *testing.T) {
 	}
 	hz := clockTicksPerSecond(t)
 
+	t.Log("booting embedded C7200 IOS")
 	embedded := bootEmbeddedC7200(t, image, ramMB, hz)
+	t.Logf("embedded IOS ready after %s; booting legacy C7200 IOS", embedded.ready)
 	legacy := bootLegacyC7200(t, binary, image, ramMB, hz)
 	for _, command := range []string{"terminal length 0", "show version", "show ip interface brief", "configure terminal", "hostname paritytest", "end"} {
 		if _, ok := embedded.outputs[command]; !ok {

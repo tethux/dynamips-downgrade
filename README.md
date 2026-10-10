@@ -122,6 +122,12 @@ DYNAMIPS_IOS_ARCHIVE=/path/to/c7200-ios.zip DYNAMIPS_IOS_RAM_MB=256 \
   mise run test:ios
 ```
 
+The task selects the amd64 JIT and tests the freshly built native libraries
+through the `dynamips_local` Go build tag and the installed pkg-config file.
+It forces a Go rebuild because Go's cache does not track external native
+archive changes. Both IOS boots run sequentially, with progress logged before
+each boot. Ordinary Go builds still use the checked-in release archives.
+
 Six local C7200 archives passed on both paths on 2026-09-23. `IOS ready` is
 wall time from VM setup to a usable privileged prompt. CPU is user plus
 system time through the command checks. RSS is total process resident memory
