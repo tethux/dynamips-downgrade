@@ -21,6 +21,7 @@
 #include <assert.h>
 
 #include "ptask.h"
+#include "utils.h"
 
 static pthread_t ptask_thread;
 static int ptask_running = 0;

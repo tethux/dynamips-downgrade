@@ -5,16 +5,16 @@
  * Periodic tasks centralization.
  */
 
-#ifndef __PTASK_H__
-#define __PTASK_H__
+#pragma once
 
 #include <sys/types.h>
-#include <sys/socket.h>
-#include <sys/un.h>
-#include "utils.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /* ptask identifier */
-typedef m_int64_t ptask_id_t;
+typedef signed long long ptask_id_t;
 
 /* periodic task callback prototype */
 typedef int (*ptask_callback)(void *object, void *arg);
@@ -40,4 +40,6 @@ int ptask_remove(ptask_id_t id);
 int ptask_init(u_int sleep_time);
 void ptask_shutdown(void);
 
+#ifdef __cplusplus
+}
 #endif
