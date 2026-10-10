@@ -1032,20 +1032,20 @@ struct symbol *mips64_sym_insert(cpu_mips_t *cpu, char *name, m_uint64_t addr) {
   return sym;
 }
 
-/* Symbol comparison function */
-static int mips64_sym_compare(m_uint64_t *a1, struct symbol *sym) {
-  if (*a1 > sym->addr)
-    return (1);
+/* Both a symbol and a lookup key start with an address. */
+static int mips64_sym_compare(void *key1, void *key2, void *opt) {
+  m_uint64_t addr1, addr2;
 
-  if (*a1 < sym->addr)
-    return (-1);
+  (void)opt;
+  memcpy(&addr1, key1, sizeof(addr1));
+  memcpy(&addr2, key2, sizeof(addr2));
 
-  return (0);
+  return (addr1 > addr2) - (addr1 < addr2);
 }
 
 /* Create the symbol tree */
 int mips64_sym_create_tree(cpu_mips_t *cpu) {
-  cpu->sym_tree = rbtree_create((tree_fcompare)mips64_sym_compare, NULL);
+  cpu->sym_tree = rbtree_create(mips64_sym_compare, NULL);
   return (cpu->sym_tree ? 0 : -1);
 }
 

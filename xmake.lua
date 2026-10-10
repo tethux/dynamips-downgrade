@@ -5,7 +5,7 @@ set_toolchains("clang")
 
 add_rules("mode.debug", "mode.release")
 if not has_config("system_packages") then
-    add_rules("plugin.compile_commands.autoupdate", {outputdir = "."})
+    add_rules("plugin.compile_commands.autoupdate", { outputdir = "." })
 end
 
 local default_jit_arch = is_arch("x86_64") and "amd64" or "nojit"
@@ -36,15 +36,15 @@ option("system_packages")
 option_end()
 
 if has_config("system_packages") then
-    add_requires("libelf", {system = true})
+    add_requires("libelf", { system = true })
 else
     add_requires("libelf")
 end
 if has_config("enable_gen_eth") then
     if has_config("system_packages") then
-        add_requires("libpcap", {system = true})
+        add_requires("libpcap", { system = true })
     else
-        add_requires("libpcap", {optional = true})
+        add_requires("libpcap", { optional = true })
     end
 end
 
@@ -53,12 +53,12 @@ local jit_arch = get_config("dynamips_arch") or default_jit_arch
 local generated_dir = path.join("$(builddir)", "generated", code)
 
 rule("dynamips.microcode")
-    before_buildcmd_file(function (target, batchcmds, sourcefile, opt)
+    before_buildcmd_file( function (target, batchcmds, sourcefile, opt)
         local outputfile = path.join("build", "generated", code, path.basename(sourcefile) .. "_dump.inc")
         local address = path.basename(sourcefile) == "mips64_microcode" and "0xbfc00000" or "0xfff00000"
         batchcmds:show_progress(opt.progress, "${color.build.object}generating %s", outputfile)
         batchcmds:mkdir(path.directory(outputfile))
-        batchcmds:vrunv(target:dep("rom2c"):targetfile(), {sourcefile, outputfile, address})
+        batchcmds:vrunv(target:dep("rom2c"):targetfile(), { sourcefile, outputfile, address })
         batchcmds:add_depfiles(sourcefile, target:dep("rom2c"):targetfile())
         batchcmds:set_depmtime(os.mtime(outputfile))
         batchcmds:set_depcache(target:dependfile(outputfile))
@@ -69,9 +69,9 @@ local function configure_dynamips_target(target_name)
     target(target_name)
         set_warnings("all")
         set_optimize("fastest")
-        add_cflags("-fasm", "-fomit-frame-pointer", {force = true})
+        add_cflags("-fasm", "-fomit-frame-pointer", { force = true })
         add_includedirs("common", code, generated_dir)
-        add_includedirs("include", {public = true})
+        add_includedirs("include", { public = true })
         add_defines(
             'DYNAMIPS_VERSION="0.2.27"',
             'JIT_ARCH="' .. jit_arch .. '"',
@@ -86,25 +86,25 @@ local function configure_dynamips_target(target_name)
             "_DEFAULT_SOURCE",
             "OSNAME=" .. (is_plat("macosx") and "Darwin" or is_plat("windows") and "Windows" or "Linux")
         )
-        add_packages("libelf", {public = true})
+        add_packages("libelf", { public = true })
         if is_plat("linux") then
-            add_syslinks("dl", "rt", "nsl", "pthread", {public = true})
+            add_syslinks("dl", "rt", "nsl", "pthread", { public = true })
         else
-            add_syslinks("pthread", {public = true})
+            add_syslinks("pthread", { public = true })
         end
         if has_config("enable_linux_eth") and is_plat("linux") then
             add_defines("LINUX_ETH")
         end
         if has_config("enable_gen_eth") and has_package("libpcap") then
             add_defines("GEN_ETH")
-            add_packages("libpcap", {public = true})
+            add_packages("libpcap", { public = true })
         end
         if jit_arch == "amd64" then
-            add_cflags("-m64", {force = true})
-            add_ldflags("-m64", {force = true})
+            add_cflags("-m64", { force = true })
+            add_ldflags("-m64", { force = true })
         elseif jit_arch == "x86" or jit_arch == "ppc32" then
-            add_cflags("-m32", {force = true})
-            add_ldflags("-m32", {force = true})
+            add_cflags("-m32", { force = true })
+            add_ldflags("-m32", { force = true })
         end
 end
 
@@ -132,10 +132,10 @@ configure_dynamips_target("dynamips-core")
         remove_files("common/gen_eth.c")
     end
     add_files(code .. "/*.c|hv_vm.c|hypervisor.c|mips_mts.c|mips64_*_trans.c|ppc32_*_trans.c")
-    add_files(code .. "/mips64_microcode", code .. "/ppc32_microcode", {rule = "dynamips.microcode"})
+    add_files(code .. "/mips64_microcode", code .. "/ppc32_microcode", { rule = "dynamips.microcode" })
     if jit_arch == "ppc32" then
         add_files(code .. "/mips64_ppc32_trans.c", "common/ppc32_ppc32_trans.c")
-        add_cflags("-Wa,-mregnames", {force = true})
+        add_cflags("-Wa,-mregnames", { force = true })
     else
         add_files(code .. "/mips64_" .. jit_arch .. "_trans.c")
         if jit_arch == "nojit" then
@@ -144,20 +144,22 @@ configure_dynamips_target("dynamips-core")
             add_files(code .. "/ppc32_" .. jit_arch .. "_trans.c")
         end
     end
+    remove_files("common/rbtree.c")
+    add_files("common/rbtree.cpp")
 
 configure_dynamips_target("dynamips-bindings")
     set_kind("static")
-    add_deps("dynamips-core", {public = true})
+    add_deps("dynamips-core", { public = true })
     add_headerfiles("include/(dynamips/*.h)")
-    add_installfiles("pkgconfig/dynamips-bindings.pc", {prefixdir = "lib/pkgconfig"})
-    add_files("modules/*.cppm", {public = true})
+    add_installfiles("pkgconfig/dynamips-bindings.pc", { prefixdir = "lib/pkgconfig" })
+    add_files("modules/*.cppm", { public = true })
     add_files("bindings/*.cpp")
     add_files("common/dynamips_bridge_*.c")
 
 configure_dynamips_target("dynamips-legacy-hypervisor")
     set_kind("static")
     set_default(false)
-    add_deps("dynamips-core", {public = true})
+    add_deps("dynamips-core", { public = true })
     add_files("common/hv_*.c", "stable/hv_vm.c", "stable/hypervisor.c")
 
 target("dynamips-module-test")
@@ -170,4 +172,4 @@ configure_dynamips_target("dynamips")
     set_kind("binary")
     add_deps("dynamips-core", "dynamips-legacy-hypervisor")
     add_files("common/dynamips_main.c")
-    add_installfiles("LICENSE", "README.md", {prefixdir = "share/doc/dynamips"})
+    add_installfiles("LICENSE", "README.md", { prefixdir = "share/doc/dynamips" })
