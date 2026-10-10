@@ -11,10 +11,18 @@
 #ifndef __BASE64_H__
 #define __BASE64_H__
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /* Encode into base64 */
 void base64_encode(unsigned char *out, const unsigned char *in, int inlen);
 
 /* Decode from base64 */
 int base64_decode(unsigned char *out, const unsigned char *in, int maxlen);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

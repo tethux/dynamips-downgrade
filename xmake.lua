@@ -145,7 +145,9 @@ configure_dynamips_target("dynamips-core")
         end
     end
     remove_files("common/rbtree.c")
+    remove_files("common/base64.c")
     add_files("common/rbtree.cpp")
+    add_files("common/base64.cppm", "common/base64_compat.cpp")
 
 configure_dynamips_target("dynamips-bindings")
     set_kind("static")
