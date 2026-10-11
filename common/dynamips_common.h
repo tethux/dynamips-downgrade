@@ -24,7 +24,9 @@
 #define FD_SETSIZE 1024
 #endif
 
+#ifndef _GNU_SOURCE
 #define _GNU_SOURCE
+#endif
 #include <stdarg.h>
 #include <sys/types.h>
 #include <stddef.h>
