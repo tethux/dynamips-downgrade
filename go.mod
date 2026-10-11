@@ -10,7 +10,7 @@ require (
 
 require (
 	github.com/pelletier/go-toml/v2 v2.3.1 // indirect
-	github.com/tethux/repolint v0.1.0 // indirect
+	github.com/tethux/repolint v0.2.0 // indirect
 	golang.org/x/text v0.9.0 // indirect
 )
 
