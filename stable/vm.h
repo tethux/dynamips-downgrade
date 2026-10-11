@@ -89,6 +89,7 @@ struct vm_obj {
 /* VM instance */
 struct vm_instance {
   char *name;
+  char *state_directory; /* Caller-selected directory for VM-generated files */
   vm_platform_t *platform;        /* Platform specific helpers */
   int status;                     /* Instance status */
   int instance_id;                /* Instance Identifier */
@@ -389,6 +390,9 @@ int vm_platform_register(vm_platform_t *platform);
 
 /* Create an instance of the specified type */
 vm_instance_t *vm_create_instance(char *name, int instance_id, char *type);
+vm_instance_t *vm_create_instance_in_directory(char *name, int instance_id,
+                                               char *type,
+                                               const char *directory);
 
 /* Delete a VM instance */
 int vm_delete_instance(char *name);

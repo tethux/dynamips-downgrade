@@ -27,13 +27,16 @@ namespace {
 namespace dynamips {
 
 fn vm::create(std::string_view name, std::int32_t instance_id,
-              std::string_view platform) noexcept -> result<vm> {
+              std::string_view platform,
+              std::string_view state_directory) noexcept -> result<vm> {
   try {
     const std::string owned_name(name);
     const std::string owned_platform(platform);
+    const std::string owned_directory(state_directory);
     dyn_vm *handle = nullptr;
-    const let status = dyn_vm_create(owned_name.c_str(), instance_id,
-                                     owned_platform.c_str(), &handle);
+    const let status = dyn_vm_create_in_directory(
+        owned_name.c_str(), instance_id, owned_platform.c_str(),
+        owned_directory.c_str(), &handle);
     if (status != DYN_OK)
       return std::unexpected(to_error(status));
     return vm(handle);

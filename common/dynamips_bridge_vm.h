@@ -8,7 +8,7 @@ extern "C" {
 #endif
 
 dyn_core_vm *dyn_core_vm_create(const char *name, int32_t instance_id,
-                                const char *platform);
+                                const char *platform, const char *directory);
 void dyn_core_vm_release(dyn_core_vm *vm);
 int dyn_core_vm_delete(const char *name);
 int dyn_core_vm_delete_handle(dyn_core_vm **vm);

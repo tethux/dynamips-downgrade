@@ -23,6 +23,9 @@ type VMConfig struct {
 	Name       string
 	InstanceID int32
 	Platform   string
+	// StateDirectory is an existing absolute directory exclusively owned by this VM.
+	// Empty preserves legacy filenames in the process working directory.
+	StateDirectory string
 }
 
 // VMStatus is the VM's current execution state.

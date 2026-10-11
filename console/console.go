@@ -1,4 +1,4 @@
-package main
+package console
 
 import (
 	"bytes"
@@ -24,7 +24,8 @@ func consoleError(operation string, cause error) error {
 	return &errs.Operation{Op: operation, Kind: errs.ErrIO, Cause: cause}
 }
 
-func runEnhancedConsole(ctx context.Context, port uint16) (raw bool, resultErr error) {
+// RunEnhanced opens local IOS editing and history. Raw requests a Telnet reconnect.
+func RunEnhanced(ctx context.Context, port uint16) (raw bool, resultErr error) {
 	address := net.JoinHostPort("127.0.0.1", strconv.Itoa(int(port)))
 	dialer := net.Dialer{Timeout: 5 * time.Second}
 	conn, dialErr := dialer.DialContext(ctx, "tcp", address)

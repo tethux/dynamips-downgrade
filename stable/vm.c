@@ -149,6 +149,9 @@ u_int vm_get_mac_addr_msb(vm_instance_t *vm) {
 char *vm_build_filename(vm_instance_t *vm, char *name) {
   char *filename, *machine;
 
+  if (vm->state_directory != NULL)
+    return dyn_sprintf("%s/%s", vm->state_directory, name);
+
   machine = vm_get_type(vm);
 
   switch (vm_file_naming_type) {
@@ -317,7 +320,8 @@ void vm_error(vm_instance_t *vm, char *format, ...) {
 
 /* Create a new VM instance */
 static vm_instance_t *vm_create(char *name, int instance_id,
-                                vm_platform_t *platform) {
+                                vm_platform_t *platform,
+                                const char *directory) {
   vm_instance_t *vm;
 
   if (!(vm = malloc(sizeof(*vm)))) {
@@ -330,6 +334,11 @@ static vm_instance_t *vm_create(char *name, int instance_id,
   if (!(vm->name = strdup(name))) {
     fprintf(stderr, "VM %s: unable to store instance name!\n", name);
     goto err_name;
+  }
+
+  if (directory != NULL && directory[0] != '\0') {
+    if (!(vm->state_directory = strdup(directory)))
+      goto err_directory;
   }
 
   vm->instance_id = instance_id;
@@ -373,6 +382,8 @@ err_log:
 err_lock:
   free(vm->rommon_vars.filename);
 err_rommon:
+  free(vm->state_directory);
+err_directory:
   free(vm->name);
 err_name:
   free(vm);
@@ -460,6 +471,7 @@ void vm_free(vm_instance_t *vm) {
     free(vm->ios_private_config);
     free(vm->rom_filename);
     free(vm->name);
+    free(vm->state_directory);
     free(vm);
   }
 }
@@ -1072,6 +1084,12 @@ int vm_platform_register(vm_platform_t *platform) {
 
 /* Create an instance of the specified type */
 vm_instance_t *vm_create_instance(char *name, int instance_id, char *type) {
+  return vm_create_instance_in_directory(name, instance_id, type, NULL);
+}
+
+vm_instance_t *vm_create_instance_in_directory(char *name, int instance_id,
+                                               char *type,
+                                               const char *directory) {
   vm_platform_t *platform;
   vm_instance_t *vm = NULL;
 
@@ -1081,7 +1099,7 @@ vm_instance_t *vm_create_instance(char *name, int instance_id, char *type) {
   }
 
   /* Create a generic VM instance */
-  if (!(vm = vm_create(name, instance_id, platform)))
+  if (!(vm = vm_create(name, instance_id, platform, directory)))
     goto error;
 
   /* Initialize specific parts */

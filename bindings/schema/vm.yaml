@@ -2,7 +2,7 @@ schema_version: 1
 
 scope:
   required:
-    [create, delete, start, stop, suspend, resume, status, set_ios, set_ram,
+    [create, create_in_directory, delete, start, stop, suspend, resume, status, set_ios, set_ram,
      set_nvram, set_sparse_mem, set_conf_reg, set_idle_pc, set_con_tcp_port,
      push_config, extract_config, slot_add_binding, slot_remove_binding,
      slot_add_nio_binding, slot_remove_nio_binding]
@@ -18,6 +18,25 @@ unresolved:
   delete: "When another native reference prevents deletion, the handle is restored and deletion returns invalid_state. Registry destructor failure is detected by checking whether the entry remains."
 
 operations:
+  - module: vm
+    operation: create_in_directory
+    classification: required
+    c_name: dyn_vm_create_in_directory
+    cpp_name: dynamips::vm::create
+    go_name: dynamips.Runtime.CreateVM
+    args:
+      - {name: name, type: string, ownership: copied}
+      - {name: instance_id, type: int32}
+      - {name: platform, type: string}
+      - {name: state_directory, type: optional_string, ownership: copied}
+    returns: {type: "handle<vm>", ownership: registry_reference}
+    errors: [invalid_argument, not_initialized, out_of_memory, create_failed, internal]
+    threading: {requires_runtime: true, blocking: true}
+    semantics:
+      directory: "An absolute existing directory exclusively leased to this VM. Null or empty preserves legacy working-directory naming. Directory creation and lifetime belong to the caller."
+      files: "VM-generated filenames become directory/name, including NVRAM, flash, ROMMON, RAM, log, and lock files. The directory is copied before ROMMON load or file creation. External IOS paths are unchanged."
+      deletion: "VM deletion retains durable state files and removes its lock as before. It never deletes the supplied directory. Configuration push is optional initial provisioning; omit it when reopening saved state."
+    source: {core: [vm_create_instance_in_directory, vm_build_filename]}
   - {module: vm, operation: slot_add_binding, classification: required, c_name: dyn_vm_add_card, cpp_name: dynamips::vm::add_card, go_name: dynamips.VM.AddCard, args: [{name: slot, type: uint32}, {name: card, type: string}], errors: [invalid_argument, not_initialized, binding_failed, internal], source: {cli: stable/hv_vm.c:cmd_slot_add_binding, core: [vm_slot_add_binding]}}
   - {module: vm, operation: slot_remove_binding, classification: required, c_name: dyn_vm_remove_card, cpp_name: dynamips::vm::remove_card, go_name: dynamips.VM.RemoveCard, args: [{name: slot, type: uint32}], errors: [invalid_argument, not_initialized, binding_failed, internal], source: {cli: stable/hv_vm.c:cmd_slot_remove_binding, core: [vm_slot_remove_binding, vm_slot_remove_all_nio_bindings]}}
   - {module: vm, operation: slot_remove_nio_binding, classification: required, c_name: dyn_vm_detach_nio, cpp_name: dynamips::vm::detach_nio, go_name: dynamips.VM.DetachNIO, args: [{name: slot, type: uint32}, {name: port, type: uint32}], errors: [invalid_argument, not_initialized, binding_failed, internal], source: {cli: stable/hv_vm.c:cmd_slot_remove_nio_binding, core: [vm_slot_remove_nio_binding]}}

@@ -4,17 +4,26 @@
 
 cfn dyn_vm_create(const char *name, int32_t instance_id, const char *platform,
                   dyn_vm **out_vm) -> dyn_result {
+  return dyn_vm_create_in_directory(name, instance_id, platform, nullptr,
+                                    out_vm);
+}
+
+cfn dyn_vm_create_in_directory(const char *name, int32_t instance_id,
+                               const char *platform, const char *directory,
+                               dyn_vm **out_vm) -> dyn_result {
   try {
     if (out_vm == nullptr)
       return DYN_ERR_INVALID_ARGUMENT;
     *out_vm = nullptr;
     if (dyn_invalid_text(name) || dyn_invalid_text(platform))
       return DYN_ERR_INVALID_ARGUMENT;
+    if (directory != nullptr && directory[0] != '\0' && directory[0] != '/')
+      return DYN_ERR_INVALID_ARGUMENT;
 
     if (const let status = dyn_require_runtime(); status != DYN_OK)
       return status;
 
-    let *value = dyn_core_vm_create(name, instance_id, platform);
+    let *value = dyn_core_vm_create(name, instance_id, platform, directory);
     if (value == nullptr)
       return DYN_ERR_CREATE_FAILED;
 

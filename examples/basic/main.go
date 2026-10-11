@@ -18,6 +18,7 @@ import (
 	"syscall"
 
 	dynamips "github.com/tethux/dynamips-downgrade"
+	"github.com/tethux/dynamips-downgrade/console"
 	"github.com/tethux/dynamips-downgrade/errs"
 )
 
@@ -114,7 +115,7 @@ func run(image string, ram uint32, consolePort uint16, enhanced bool) (runErr er
 	ctx, stop := signal.NotifyContext(context.Background(), signals...)
 	defer stop()
 	if enhanced {
-		raw, consoleErr := runEnhancedConsole(ctx, consolePort)
+		raw, consoleErr := console.RunEnhanced(ctx, consolePort)
 		if consoleErr != nil || !raw {
 			return consoleErr
 		}

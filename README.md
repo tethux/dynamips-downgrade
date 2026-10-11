@@ -86,6 +86,12 @@ It exposes VM lifecycle and configuration, cards, NIO, and C7200 settings.
 The embedded runtime is process wide and can be initialized only once. Close
 VM, NIO, and switch handles before closing it.
 
+`VMConfig.StateDirectory` selects an existing absolute directory for that VM's
+NVRAM, flash, ROMMON variables, and other generated files. Lease a separate
+directory to each active VM. VM deletion retains saved state and removes its
+lock; the caller owns the directory lifetime. Empty uses the legacy filenames
+in the process working directory. IOS image paths remain separate.
+
 See the [C7200 example](examples/basic/main.go) for a complete VM lifecycle,
 including shutdown and error cleanup.
 

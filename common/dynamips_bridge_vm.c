@@ -12,10 +12,11 @@
 #include <string.h>
 
 dyn_core_vm *dyn_core_vm_create(const char *name, int32_t instance_id,
-                                const char *platform) {
+                                const char *platform, const char *directory) {
   vm_instance_t *vm;
 
-  vm = vm_create_instance((char *)name, instance_id, (char *)platform);
+  vm = vm_create_instance_in_directory((char *)name, instance_id,
+                                       (char *)platform, directory);
   if (vm == NULL)
     return (NULL);
 

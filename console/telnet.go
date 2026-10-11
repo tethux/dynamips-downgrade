@@ -1,7 +1,8 @@
-package main
+package console
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"net"
 	"sync"
@@ -118,4 +119,44 @@ func (c *telnetConsole) write(data []byte) error {
 		return io.ErrShortWrite
 	}
 	return writeErr
+}
+
+// Connection owns a Telnet console stream with protocol negotiation and escaping.
+type Connection struct {
+	stream *telnetConsole
+	stop   func() bool
+}
+
+// Dial connects to a console. Cancellation closes the stream to unblock readers.
+func Dial(ctx context.Context, address string) (*Connection, error) {
+	dialer := net.Dialer{Timeout: 5 * time.Second}
+	conn, dialErr := dialer.DialContext(ctx, "tcp", address)
+	if dialErr != nil {
+		return nil, consoleError("connect console", dialErr)
+	}
+	result := &Connection{stream: &telnetConsole{conn: conn}}
+	result.stop = context.AfterFunc(ctx, func() { _ = conn.Close() })
+	return result, nil
+}
+
+// Read reads guest output after Telnet negotiation.
+func (c *Connection) Read(data []byte) (int, error) { return c.stream.Read(data) }
+
+// Write sends guest input with Telnet escaping.
+func (c *Connection) Write(data []byte) (int, error) {
+	if writeErr := c.stream.send(data); writeErr != nil {
+		return 0, writeErr
+	}
+	return len(data), nil
+}
+
+// Close closes the owned connection.
+func (c *Connection) Close() error {
+	c.stop()
+	return c.stream.conn.Close()
+}
+
+// SetDeadline bounds console reads and writes.
+func (c *Connection) SetDeadline(deadline time.Time) error {
+	return c.stream.conn.SetDeadline(deadline)
 }

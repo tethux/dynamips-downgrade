@@ -27,9 +27,10 @@ enum class vm_status : int {
 
 class vm final {
 public:
-  [[nodiscard]] static result<vm> create(std::string_view name,
-                                         std::int32_t instance_id,
-                                         std::string_view platform) noexcept;
+  [[nodiscard]] static result<vm>
+  create(std::string_view name, std::int32_t instance_id,
+         std::string_view platform,
+         std::string_view state_directory = {}) noexcept;
 
   vm(const vm &) = delete;
   vm &operator=(const vm &) = delete;

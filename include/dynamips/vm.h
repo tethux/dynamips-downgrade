@@ -19,6 +19,11 @@ typedef enum dyn_vm_status {
 
 dyn_result dyn_vm_create(const char *name, int32_t instance_id,
                          const char *platform, dyn_vm **out_vm);
+/* directory is copied before any VM file access; null preserves legacy paths.
+ */
+dyn_result dyn_vm_create_in_directory(const char *name, int32_t instance_id,
+                                      const char *platform,
+                                      const char *directory, dyn_vm **out_vm);
 void dyn_vm_release(dyn_vm *vm);
 dyn_result dyn_vm_delete(dyn_vm **vm);
 dyn_result dyn_vm_suspend(dyn_vm *vm);

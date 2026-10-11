@@ -7,6 +7,7 @@ package dynamips
 import "C"
 
 import (
+	"strings"
 	"unsafe"
 
 	"github.com/tethux/dynamips-downgrade/errs"
@@ -14,9 +15,10 @@ import (
 
 // VMConfig describes a VM before it is created.
 type VMConfig struct {
-	Name       string
-	InstanceID int32
-	Platform   string
+	Name           string
+	InstanceID     int32
+	Platform       string
+	StateDirectory string
 }
 
 // VM owns one reference to a Dynamips VM.
@@ -43,17 +45,23 @@ func (r *Runtime) CreateVM(config VMConfig) (*VM, error) {
 	if r == nil || !r.active {
 		return nil, operationError("create VM", errs.ErrClosed, nil)
 	}
+	if strings.ContainsRune(config.StateDirectory, '\x00') {
+		return nil, operationError("create VM", errs.ErrInvalidArgument, nil)
+	}
 
 	name := C.CString(config.Name)
 	defer C.free(unsafe.Pointer(name))
 	platform := C.CString(config.Platform)
 	defer C.free(unsafe.Pointer(platform))
+	directory := C.CString(config.StateDirectory)
+	defer C.free(unsafe.Pointer(directory))
 
 	var handle *C.dyn_vm
-	status := C.dyn_vm_create(
+	status := C.dyn_vm_create_in_directory(
 		name,
 		C.int32_t(config.InstanceID),
 		platform,
+		directory,
 		&handle,
 	)
 	if status != C.DYN_OK {
