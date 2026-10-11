@@ -29,8 +29,10 @@ run = """
 test "$(uname -s)" = Linux && test "$(uname -m)" = x86_64 || { echo 'Go archives support Linux amd64 only' >&2; exit 2; }
 xmake f -m release --dynamips_arch=amd64 --system_packages=y --enable_gen_eth=y -y
 xmake build -j "${DYNAMIPS_BUILD_JOBS:-14}" -y dynamips-bindings
+xmake install -o "$PWD/build/install" dynamips-core
 install -Dm644 build/linux/x86_64/release/libdynamips-bindings.a internal/binding/libdynamips-bindings_linux_amd64.a
 install -Dm644 build/linux/x86_64/release/libdynamips-core.a internal/binding/libdynamips-core_linux_amd64.a
+install -Dm644 build/install/lib/libz.a internal/binding/libz_linux_amd64.a
 install -m644 include/dynamips/*.h internal/binding/
 """
 

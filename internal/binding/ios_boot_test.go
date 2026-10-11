@@ -92,14 +92,48 @@ func TestC7200IOSBootParity(t *testing.T) {
 			}
 		}
 	}
-	for _, run := range []struct {
-		name string
-		data iosRun
-	}{{"embedded", embedded}, {"legacy", legacy}} {
-		m := run.data.metrics
-		t.Logf("%s: startup=%s IOS-ready=%s CPU through CLI checks(user/system)=%s/%s RSS(start/CLI-checks-done/peak)=%.1f/%.1f/%.1f MiB", run.name, run.data.startup, run.data.ready, m.cpuUser, m.cpuSystem, mebibytes(m.rssStart), mebibytes(m.rssReady), mebibytes(m.rssPeak))
+	logIOSComparison(t, embedded, legacy)
+}
+
+func logIOSComparison(t *testing.T, embedded, legacy iosRun) {
+	t.Helper()
+	e, l := embedded.metrics, legacy.metrics
+	lines := []string{
+		"C7200 IOS: embedded API vs legacy hypervisor API",
+		fmt.Sprintf("%-27s %12s %12s %14s %11s", "Metric", "Embedded", "Legacy", "Saved", "Saved (%)"),
+		strings.Repeat("-", 80),
 	}
-	t.Log("RSS peak is sampled every 100ms. Embedded figures are Go process totals and include the preinitialized runtime and test harness; only ready-minus-start deltas isolate this VM approximately. Legacy startup includes hypervisor process launch; embedded startup begins at VM configuration.")
+	for _, row := range []struct {
+		name     string
+		unit     string
+		embedded float64
+		legacy   float64
+	}{
+		{"VM startup", "s", embedded.startup.Seconds(), legacy.startup.Seconds()},
+		{"IOS ready (wall time)", "s", embedded.ready.Seconds(), legacy.ready.Seconds()},
+		{"CPU total through CLI", "s", (e.cpuUser + e.cpuSystem).Seconds(), (l.cpuUser + l.cpuSystem).Seconds()},
+		{"CPU user", "s", e.cpuUser.Seconds(), l.cpuUser.Seconds()},
+		{"CPU system", "s", e.cpuSystem.Seconds(), l.cpuSystem.Seconds()},
+		{"RSS before VM", "MiB", mebibytes(e.rssStart), mebibytes(l.rssStart)},
+		{"RSS after CLI", "MiB", mebibytes(e.rssReady), mebibytes(l.rssReady)},
+		{"RSS sampled peak", "MiB", mebibytes(e.rssPeak), mebibytes(l.rssPeak)},
+		{"RSS growth through CLI", "MiB", mebibytes(e.rssReady) - mebibytes(e.rssStart), mebibytes(l.rssReady) - mebibytes(l.rssStart)},
+	} {
+		saved := row.legacy - row.embedded
+		percent := "n/a"
+		if row.legacy > 0 {
+			percent = fmt.Sprintf("%+.2f%%", 100*saved/row.legacy)
+		}
+		lines = append(lines, fmt.Sprintf("%-27s %8.3f %-3s %8.3f %-3s %+10.3f %-3s %11s", row.name, row.embedded, row.unit, row.legacy, row.unit, saved, row.unit, percent))
+	}
+	lines = append(lines,
+		"Saved = legacy - embedded; positive is less time/memory, negative is more.",
+		"CPU and final RSS include CLI checks. RSS peak is sampled every 100ms.",
+		"Embedded RSS includes Go/runtime overhead; RSS growth approximates VM memory.",
+		"Legacy startup includes process launch; embedded starts at VM configuration.",
+		"One sequential run per API, using the same native core; not a before/after benchmark.",
+	)
+	t.Log("\n" + strings.Join(lines, "\n"))
 }
 
 func extractC7200IOS(t *testing.T, archive string) string {

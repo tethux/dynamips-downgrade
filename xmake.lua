@@ -41,6 +41,7 @@ else
     add_requires("libelf")
 end
 add_requires("asio 1.36.0", { system = false })
+add_requires("zlib 1.3.2", { system = false })
 if has_config("enable_gen_eth") then
     if has_config("system_packages") then
         add_requires("libpcap", { system = true })
@@ -123,12 +124,19 @@ target("rom2c")
 configure_dynamips_target("dynamips-core")
     set_kind("static")
     add_packages("asio")
-    add_files("common/ptask.cpp")
+    add_packages("zlib", { public = true })
+    add_files("common/ptask.cpp", "common/crc.cpp")
     add_deps("rom2c")
     add_rules("dynamips.microcode")
     add_headerfiles("include/(dynamips/*.h)")
     add_files("common/*.c|dynamips_bridge_*.c|dynamips_main.c|hv_*.c|ppc32_nojit_trans.c|ppc32_ppc32_trans.c|profiler.c|rom2c.c")
     remove_files("common/ptask.c")
+    remove_files("common/crc.c")
+    after_install(function (target)
+        for _, file in ipairs(target:pkg("zlib"):get("libfiles")) do
+            os.cp(file, path.join(target:installdir(), "lib"))
+        end
+    end)
     if not (has_config("enable_linux_eth") and is_plat("linux")) then
         remove_files("common/linux_eth.c")
     end
@@ -173,6 +181,20 @@ target("dynamips-module-test")
     set_kind("binary")
     add_deps("dynamips-bindings")
     add_files("tests/module.cpp")
+
+configure_dynamips_target("dynamips-crc-legacy-test")
+    set_default(false)
+    set_kind("binary")
+    add_packages("zlib")
+    add_defines('CRC_IMPLEMENTATION="legacy"')
+    add_files("tests/crc.cpp", "tests/crc_legacy.c", "common/crc.c")
+
+configure_dynamips_target("dynamips-crc-zlib-test")
+    set_default(false)
+    set_kind("binary")
+    add_packages("zlib")
+    add_defines('CRC_IMPLEMENTATION="zlib"', "CRC_TEST_ZLIB")
+    add_files("tests/crc.cpp", "tests/crc_legacy.c", "common/crc.c", "common/crc.cpp")
 
 configure_dynamips_target("dynamips")
     set_kind("binary")

@@ -45,7 +45,6 @@
 #include "net_io.h"
 #include "net_io_bridge.h"
 #include "net_io_filter.h"
-#include "crc.h"
 #include "atm.h"
 #include "atm_bridge.h"
 #include "frame_relay.h"
@@ -929,9 +928,6 @@ static dyn_result runtime_init(int embedded, int argc, char *argv[]) {
 
   /* Initialize ATM module (for HEC checksums) */
   atm_init();
-
-  /* Initialize CRC functions */
-  crc_init();
 
   /* Initialize NetIO code */
   if (netio_rxl_init() == -1) {
