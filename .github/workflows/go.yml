@@ -1,0 +1,23 @@
+name: Go policies
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install binding link dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libelf-dev libpcap-dev libnsl-dev
+      - uses: jdx/mise-action@v3
+        with:
+          install_args: go golangci-lint
+      - run: mise run lint:go

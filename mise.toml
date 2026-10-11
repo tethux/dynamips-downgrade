@@ -54,7 +54,10 @@ go test -a -tags=dynamips_local ./internal/binding -run '^TestC7200IOSBootParity
 
 [tasks."lint:go"]
 description = "lint the Go bindings"
-run = "golangci-lint run ./..."
+run = """
+go tool repolint .
+golangci-lint run ./...
+"""
 
 [tasks."lint:cppcheck"]
 description = "check the C and C++ embedding boundary"
@@ -97,3 +100,7 @@ run = "find . -path ./build -prune -o -name '*.go' -print0 | xargs -0 goimports 
 [tasks.clean]
 description = "remove generated build files"
 run = "xmake clean -a && rm -rf build compile_commands.json"
+
+[tasks."fix:go"]
+description = "Apply permitted Go policy fixes"
+run = "go tool repolint --fix ."

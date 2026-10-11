@@ -8,4 +8,10 @@ require (
 	golang.org/x/term v0.14.0
 )
 
-require golang.org/x/text v0.9.0 // indirect
+require (
+	github.com/pelletier/go-toml/v2 v2.3.1 // indirect
+	github.com/tethux/repolint v0.1.0 // indirect
+	golang.org/x/text v0.9.0 // indirect
+)
+
+tool github.com/tethux/repolint/cmd/repolint
