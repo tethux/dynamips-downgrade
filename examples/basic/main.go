@@ -18,23 +18,33 @@ import (
 	"syscall"
 
 	dynamips "github.com/tethux/dynamips-downgrade"
+	"github.com/tethux/dynamips-downgrade/errs"
+)
+
+var (
+	errVMConfiguration        = errors.New("VM configuration failed")
+	errArchiveMultipleImages  = errors.New("IOS archive contains multiple images")
+	errArchiveInvalidSize     = errors.New("IOS archive needs one image of at most 256 MiB")
+	errArchiveIncompleteImage = errors.New("IOS archive has an incomplete image")
 )
 
 func main() {
 	image := flag.String("ios", "", "path to a C7200 IOS image or zip archive")
 	ram := flag.Uint("ram", 256, "router RAM in MiB")
 	consolePort := flag.Uint("console-port", 2000, "TCP console port")
+	enhanced := flag.Bool("enhanced", false, "use local console editing and history")
 	flag.Parse()
 	if *image == "" || *ram == 0 || *ram > 2048 || *consolePort == 0 || *consolePort > 65535 {
 		flag.Usage()
 		os.Exit(2)
+		return
 	}
-	if err := run(*image, uint32(*ram), uint16(*consolePort)); err != nil {
+	if err := run(*image, uint32(*ram), uint16(*consolePort), *enhanced); err != nil {
 		log.Fatal(err)
 	}
 }
 
-func run(image string, ram uint32, consolePort uint16) (runErr error) {
+func run(image string, ram uint32, consolePort uint16, enhanced bool) (runErr error) {
 	workingDirectory, err := os.Getwd()
 	if err != nil {
 		return err
@@ -50,8 +60,8 @@ func run(image string, ram uint32, consolePort uint16) (runErr error) {
 	defer func() {
 		runErr = errors.Join(runErr, os.Chdir(workingDirectory), os.RemoveAll(exampleDirectory))
 	}()
-	if err := os.Chdir(exampleDirectory); err != nil {
-		return err
+	if changeErr := os.Chdir(exampleDirectory); changeErr != nil {
+		return changeErr
 	}
 	image, err = imageFromArchive(image, exampleDirectory)
 	if err != nil {
@@ -89,17 +99,32 @@ func run(image string, ram uint32, consolePort uint16) (runErr error) {
 		{"initial config", func() error { return vm.PushConfig([]byte("hostname Router\nno ip domain-lookup\nend\n"), []byte{}) }},
 		{"config register", func() error { return vm.SetConfigRegister(0x2102) }},
 	} {
-		if err := step.run(); err != nil {
-			return fmt.Errorf("configure %s: %w", step.name, err)
+		if configErr := step.run(); configErr != nil {
+			return &errs.Operation{Op: "configure " + step.name, Kind: errVMConfiguration, Cause: configErr}
 		}
 	}
-	if err := vm.Start(); err != nil {
-		return err
+	if startErr := vm.Start(); startErr != nil {
+		return startErr
 	}
 	started = true
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	signals := []os.Signal{syscall.SIGTERM}
+	if !enhanced {
+		signals = append(signals, os.Interrupt)
+	}
+	ctx, stop := signal.NotifyContext(context.Background(), signals...)
 	defer stop()
+	if enhanced {
+		raw, consoleErr := runEnhancedConsole(ctx, consolePort)
+		if consoleErr != nil || !raw {
+			return consoleErr
+		}
+	}
+	return runTelnet(ctx, consolePort)
+}
+
+func runTelnet(ctx context.Context, consolePort uint16) error {
 	fmt.Printf("C7200 booting on console port %d. Press Ctrl+] then type quit to stop.\n", consolePort)
+	//nolint:gosec // Fixed executable and loopback host; the port is a uint16.
 	console := exec.CommandContext(ctx, "telnet", "127.0.0.1", strconv.Itoa(int(consolePort)))
 	console.Stdin = os.Stdin
 	console.Stdout = os.Stdout
@@ -124,13 +149,13 @@ func imageFromArchive(path, directory string) (image string, resultErr error) {
 		lower := strings.ToLower(file.Name)
 		if strings.HasSuffix(lower, ".bin") || strings.HasSuffix(lower, ".image") {
 			if selected != nil {
-				return "", errors.New("IOS archive contains multiple images")
+				return "", &errs.Operation{Op: "select IOS image", Kind: errs.ErrInvalidArgument, Cause: errArchiveMultipleImages}
 			}
 			selected = file
 		}
 	}
 	if selected == nil || selected.UncompressedSize64 == 0 || selected.UncompressedSize64 > 256<<20 {
-		return "", errors.New("IOS archive needs one image of at most 256 MiB")
+		return "", &errs.Operation{Op: "select IOS image", Kind: errs.ErrInvalidArgument, Cause: errArchiveInvalidSize}
 	}
 	source, err := selected.Open()
 	if err != nil {
@@ -138,6 +163,7 @@ func imageFromArchive(path, directory string) (image string, resultErr error) {
 	}
 	defer func() { resultErr = errors.Join(resultErr, source.Close()) }()
 	image = filepath.Join(directory, "ios.bin")
+	//nolint:gosec // The destination is fixed inside the example-owned temporary directory.
 	target, err := os.OpenFile(image, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
 	if err != nil {
 		return "", err
@@ -148,7 +174,7 @@ func imageFromArchive(path, directory string) (image string, resultErr error) {
 		return "", joined
 	}
 	if written != int64(selected.UncompressedSize64) {
-		return "", errors.New("IOS archive has an incomplete image")
+		return "", &errs.Operation{Op: "extract IOS image", Kind: errs.ErrIO, Cause: errArchiveIncompleteImage}
 	}
 	return image, nil
 }
