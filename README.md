@@ -189,3 +189,14 @@ next steps are:
    supported JIT paths are measured. End with directories organized by
    runtime, CPU, devices, network, Cisco platforms, and console rather than
    the historical `common/` and `stable/` split.
+
+## Architecture checks
+
+`mise run lint:architecture` checks `.repolint-architecture.toml` using the sibling
+`../repolint` checkout. Set `REPOLINT_SOURCE` for another checkout or `REPOLINT_BIN`
+for a built checker containing the new rules. `mise run check` combines these
+contracts with the existing Go policy, lint, and binding test tasks. Required
+rules cannot be disabled through the configuration.
+
+The published Go tool still reads `.repolint.toml`. The architecture checker
+needs a repolint release before its rules can join the published-tool CI gate.
