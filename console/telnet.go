@@ -123,8 +123,10 @@ func (c *telnetConsole) write(data []byte) error {
 
 // Connection owns a Telnet console stream with protocol negotiation and escaping.
 type Connection struct {
-	stream *telnetConsole
-	stop   func() bool
+	stream    *telnetConsole
+	stop      func() bool
+	closeOnce sync.Once
+	closeErr  error
 }
 
 // Dial connects to a console. Cancellation closes the stream to unblock readers.
@@ -135,7 +137,7 @@ func Dial(ctx context.Context, address string) (*Connection, error) {
 		return nil, consoleError("connect console", dialErr)
 	}
 	result := &Connection{stream: &telnetConsole{conn: conn}}
-	result.stop = context.AfterFunc(ctx, func() { _ = conn.Close() })
+	result.stop = context.AfterFunc(ctx, result.closeStream)
 	return result, nil
 }
 
@@ -152,11 +154,19 @@ func (c *Connection) Write(data []byte) (int, error) {
 
 // Close closes the owned connection.
 func (c *Connection) Close() error {
+	if c == nil {
+		return nil
+	}
 	c.stop()
-	return c.stream.conn.Close()
+	c.closeStream()
+	return c.closeErr
 }
 
 // SetDeadline bounds console reads and writes.
 func (c *Connection) SetDeadline(deadline time.Time) error {
 	return c.stream.conn.SetDeadline(deadline)
+}
+
+func (c *Connection) closeStream() {
+	c.closeOnce.Do(func() { c.closeErr = c.stream.conn.Close() })
 }
