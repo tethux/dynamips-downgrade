@@ -17,6 +17,9 @@ operations:
     c_name: dyn_c7200_set_npe
     cpp_name: dynamips::c7200::set_npe
     go_name: dynamips.VM.SetC7200NPE
+    c_signature: "dyn_result(dyn_vm*,constchar*)"
+    cpp_signature: "result<void>(vm&,std::string_viewtype)noexcept"
+    go_signature: "(string)(error)"
     args: [{name: vm, type: "handle<vm>", ownership: borrowed}, {name: type, type: string}]
     returns: {type: void}
     errors: [invalid_argument, not_initialized, unsupported, invalid_state, internal]
@@ -29,6 +32,9 @@ operations:
     c_name: dyn_c7200_set_midplane
     cpp_name: dynamips::c7200::set_midplane
     go_name: dynamips.VM.SetC7200Midplane
+    c_signature: "dyn_result(dyn_vm*,constchar*)"
+    cpp_signature: "result<void>(vm&,std::string_viewtype)noexcept"
+    go_signature: "(string)(error)"
     args: [{name: vm, type: "handle<vm>", ownership: borrowed}, {name: type, type: string}]
     returns: {type: void}
     errors: [invalid_argument, not_initialized, unsupported, invalid_state, internal]
@@ -41,6 +47,9 @@ operations:
     c_name: dyn_c7200_set_mac_addr
     cpp_name: dynamips::c7200::set_mac_addr
     go_name: dynamips.VM.SetC7200MACAddr
+    c_signature: "dyn_result(dyn_vm*,constuint8_t[6])"
+    cpp_signature: "result<void>(vm&,std::array<std::uint8_t,6>)noexcept"
+    go_signature: "([6]byte)(error)"
     args: [{name: vm, type: "handle<vm>", ownership: borrowed}, {name: mac, type: mac_address}]
     returns: {type: void}
     errors: [invalid_argument, not_initialized, unsupported, invalid_state, internal]

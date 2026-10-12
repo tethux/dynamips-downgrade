@@ -26,6 +26,9 @@ operations:
     c_name: dyn_runtime_init_embedded
     cpp_name: dynamips::runtime::init_embedded
     go_name: dynamips.New
+    c_signature: "dyn_result()"
+    cpp_signature: "result<runtime>()noexcept"
+    go_signature: "()(*Runtime,error)"
     args: []
     returns: {type: "handle<runtime>", ownership: unique}
     errors: [already_initialized, out_of_memory, io, start_failed]
@@ -38,6 +41,9 @@ operations:
     c_name: dyn_runtime_shutdown
     cpp_name: dynamips::runtime::~runtime
     go_name: dynamips.Runtime.Close
+    c_signature: "void()"
+    cpp_signature: "()"
+    go_signature: "()(error)"
     args: []
     returns: {type: void}
     errors: []

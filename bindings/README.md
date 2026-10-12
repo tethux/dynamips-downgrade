@@ -28,3 +28,9 @@ The legacy registry owns VM, NIO, and Ethernet switch objects. A public handle o
 reference and releases it when destroyed. All handles must be destroyed before
 the process-global runtime. Calls are externally serialized until the legacy
 global state can be isolated.
+
+Required operations record C, C++, and Go signature snapshots in the domain
+schemas. `mise run lint:architecture` compares declarations, definitions,
+public members, Go methods, and copied headers. Changes to a signature require
+updating its contract alongside all binding layers. Native compilation and
+runtime tests establish behavior beyond these static surface checks.

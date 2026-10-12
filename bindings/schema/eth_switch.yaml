@@ -15,6 +15,9 @@ operations:
     c_name: dyn_eth_switch_create
     cpp_name: dynamips::ethernet_switch::create
     go_name: dynamips.Runtime.CreateEthernetSwitch
+    c_signature: "dyn_result(constchar*,dyn_eth_switch**)"
+    cpp_signature: "result<ethernet_switch>(std::string_view)noexcept"
+    go_signature: "(string)(*EthernetSwitch,error)"
     args:
       - {name: name, type: string}
     returns: {type: "handle<eth_switch>", ownership: registry_reference}
@@ -30,6 +33,9 @@ operations:
     c_name: dyn_eth_switch_add_nio
     cpp_name: dynamips::ethernet_switch::add
     go_name: dynamips.EthernetSwitch.AddNIO
+    c_signature: "dyn_result(dyn_eth_switch*,dyn_nio*)"
+    cpp_signature: "result<void>(nio&)noexcept"
+    go_signature: "(*NIO)(error)"
     args:
       - {name: switch, type: "handle<eth_switch>", ownership: borrowed}
       - {name: nio, type: "handle<nio>", ownership: borrowed}

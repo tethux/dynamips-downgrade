@@ -24,6 +24,9 @@ operations:
     c_name: dyn_vm_create_in_directory
     cpp_name: dynamips::vm::create
     go_name: dynamips.Runtime.CreateVM
+    c_signature: "dyn_result(constchar*,int32_t,constchar*,constchar*,dyn_vm**)"
+    cpp_signature: "result<vm>(std::string_view,std::int32_t,std::string_view,std::string_view)noexcept"
+    go_signature: "(VMConfig)(*VM,error)"
     args:
       - {name: name, type: string, ownership: copied}
       - {name: instance_id, type: int32}
@@ -37,15 +40,18 @@ operations:
       files: "VM-generated filenames become directory/name, including NVRAM, flash, ROMMON, RAM, log, and lock files. The directory is copied before ROMMON load or file creation. External IOS paths are unchanged."
       deletion: "VM deletion retains durable state files and removes its lock as before. It never deletes the supplied directory. Configuration push is optional initial provisioning; omit it when reopening saved state."
     source: {core: [vm_create_instance_in_directory, vm_build_filename]}
-  - {module: vm, operation: slot_add_binding, classification: required, c_name: dyn_vm_add_card, cpp_name: dynamips::vm::add_card, go_name: dynamips.VM.AddCard, args: [{name: slot, type: uint32}, {name: card, type: string}], errors: [invalid_argument, not_initialized, binding_failed, internal], source: {cli: stable/hv_vm.c:cmd_slot_add_binding, core: [vm_slot_add_binding]}}
-  - {module: vm, operation: slot_remove_binding, classification: required, c_name: dyn_vm_remove_card, cpp_name: dynamips::vm::remove_card, go_name: dynamips.VM.RemoveCard, args: [{name: slot, type: uint32}], errors: [invalid_argument, not_initialized, binding_failed, internal], source: {cli: stable/hv_vm.c:cmd_slot_remove_binding, core: [vm_slot_remove_binding, vm_slot_remove_all_nio_bindings]}}
-  - {module: vm, operation: slot_remove_nio_binding, classification: required, c_name: dyn_vm_detach_nio, cpp_name: dynamips::vm::detach_nio, go_name: dynamips.VM.DetachNIO, args: [{name: slot, type: uint32}, {name: port, type: uint32}], errors: [invalid_argument, not_initialized, binding_failed, internal], source: {cli: stable/hv_vm.c:cmd_slot_remove_nio_binding, core: [vm_slot_remove_nio_binding]}}
+  - {module: vm, operation: slot_add_binding, classification: required, c_name: dyn_vm_add_card, cpp_name: dynamips::vm::add_card, go_name: dynamips.VM.AddCard, c_signature: "dyn_result(dyn_vm*,uint32_t,constchar*)", cpp_signature: "result<void>(std::uint32_t,std::string_view)noexcept", go_signature: "(uint32,string)(error)", args: [{name: slot, type: uint32}, {name: card, type: string}], errors: [invalid_argument, not_initialized, binding_failed, internal], source: {cli: stable/hv_vm.c:cmd_slot_add_binding, core: [vm_slot_add_binding]}}
+  - {module: vm, operation: slot_remove_binding, classification: required, c_name: dyn_vm_remove_card, cpp_name: dynamips::vm::remove_card, go_name: dynamips.VM.RemoveCard, c_signature: "dyn_result(dyn_vm*,uint32_t)", cpp_signature: "result<void>(std::uint32_t)noexcept", go_signature: "(uint32)(error)", args: [{name: slot, type: uint32}], errors: [invalid_argument, not_initialized, binding_failed, internal], source: {cli: stable/hv_vm.c:cmd_slot_remove_binding, core: [vm_slot_remove_binding, vm_slot_remove_all_nio_bindings]}}
+  - {module: vm, operation: slot_remove_nio_binding, classification: required, c_name: dyn_vm_detach_nio, cpp_name: dynamips::vm::detach_nio, go_name: dynamips.VM.DetachNIO, c_signature: "dyn_result(dyn_vm*,uint32_t,uint32_t)", cpp_signature: "result<void>(std::uint32_t,std::uint32_t)noexcept", go_signature: "(uint32,uint32)(error)", args: [{name: slot, type: uint32}, {name: port, type: uint32}], errors: [invalid_argument, not_initialized, binding_failed, internal], source: {cli: stable/hv_vm.c:cmd_slot_remove_nio_binding, core: [vm_slot_remove_nio_binding]}}
   - module: vm
     operation: delete
     classification: required
     c_name: dyn_vm_delete
     cpp_name: dynamips::vm::delete_instance
     go_name: dynamips.VM.Delete
+    c_signature: "dyn_result(dyn_vm**)"
+    cpp_signature: "result<void>()noexcept"
+    go_signature: "()(error)"
     args: [{name: vm, type: "handle<vm>", ownership: consumed_on_success}]
     returns: {type: void}
     errors: [invalid_argument, not_initialized, invalid_state, internal]
@@ -58,6 +64,9 @@ operations:
     c_name: dyn_vm_suspend
     cpp_name: dynamips::vm::suspend
     go_name: dynamips.VM.Suspend
+    c_signature: "dyn_result(dyn_vm*)"
+    cpp_signature: "result<void>()noexcept"
+    go_signature: "()(error)"
     args: [{name: vm, type: "handle<vm>", ownership: borrowed}]
     returns: {type: void}
     errors: [invalid_argument, not_initialized, invalid_state, internal]
@@ -70,6 +79,9 @@ operations:
     c_name: dyn_vm_resume
     cpp_name: dynamips::vm::resume
     go_name: dynamips.VM.Resume
+    c_signature: "dyn_result(dyn_vm*)"
+    cpp_signature: "result<void>()noexcept"
+    go_signature: "()(error)"
     args: [{name: vm, type: "handle<vm>", ownership: borrowed}]
     returns: {type: void}
     errors: [invalid_argument, not_initialized, invalid_state, internal]
@@ -82,6 +94,9 @@ operations:
     c_name: dyn_vm_set_ios
     cpp_name: dynamips::vm::set_ios
     go_name: dynamips.VM.SetIOS
+    c_signature: "dyn_result(dyn_vm*,constchar*)"
+    cpp_signature: "result<void>(std::string_view)noexcept"
+    go_signature: "(string)(error)"
     args:
       - {name: vm, type: "handle<vm>", ownership: borrowed}
       - {name: path, type: string, ownership: copied}
@@ -96,6 +111,9 @@ operations:
     c_name: dyn_vm_set_nvram
     cpp_name: dynamips::vm::set_nvram
     go_name: dynamips.VM.SetNVRAM
+    c_signature: "dyn_result(dyn_vm*,uint32_t)"
+    cpp_signature: "result<void>(std::uint32_t)noexcept"
+    go_signature: "(uint32)(error)"
     args:
       - {name: vm, type: "handle<vm>", ownership: borrowed}
       - {name: kilobytes, type: uint32}
@@ -110,6 +128,9 @@ operations:
     c_name: dyn_vm_set_sparse_mem
     cpp_name: dynamips::vm::set_sparse_mem
     go_name: dynamips.VM.SetSparseMemory
+    c_signature: "dyn_result(dyn_vm*,int)"
+    cpp_signature: "result<void>(bool)noexcept"
+    go_signature: "(bool)(error)"
     args:
       - {name: vm, type: "handle<vm>", ownership: borrowed}
       - {name: enabled, type: bool}
@@ -124,6 +145,9 @@ operations:
     c_name: dyn_vm_set_conf_reg
     cpp_name: dynamips::vm::set_conf_reg
     go_name: dynamips.VM.SetConfigRegister
+    c_signature: "dyn_result(dyn_vm*,uint32_t)"
+    cpp_signature: "result<void>(std::uint32_t)noexcept"
+    go_signature: "(uint32)(error)"
     args:
       - {name: vm, type: "handle<vm>", ownership: borrowed}
       - {name: value, type: uint32}
@@ -138,6 +162,9 @@ operations:
     c_name: dyn_vm_set_idle_pc
     cpp_name: dynamips::vm::set_idle_pc
     go_name: dynamips.VM.SetIdlePC
+    c_signature: "dyn_result(dyn_vm*,uint64_t)"
+    cpp_signature: "result<void>(std::uint64_t)noexcept"
+    go_signature: "(uint64)(error)"
     args:
       - {name: vm, type: "handle<vm>", ownership: borrowed}
       - {name: value, type: uint64}
@@ -152,6 +179,9 @@ operations:
     c_name: dyn_vm_set_con_tcp_port
     cpp_name: dynamips::vm::set_con_tcp_port
     go_name: dynamips.VM.SetConsoleTCPPort
+    c_signature: "dyn_result(dyn_vm*,uint16_t)"
+    cpp_signature: "result<void>(std::uint16_t)noexcept"
+    go_signature: "(uint16)(error)"
     args:
       - {name: vm, type: "handle<vm>", ownership: borrowed}
       - {name: port, type: uint16}
@@ -166,6 +196,9 @@ operations:
     c_name: dyn_vm_push_config
     cpp_name: dynamips::vm::push_config
     go_name: dynamips.VM.PushConfig
+    c_signature: "dyn_result(dyn_vm*,constuint8_t*,size_t,constuint8_t*,size_t)"
+    cpp_signature: "result<void>(conststd::vector<std::byte>*,conststd::vector<std::byte>*)noexcept"
+    go_signature: "([]byte,[]byte)(error)"
     args:
       - {name: vm, type: "handle<vm>", ownership: borrowed}
       - {name: startup, type: optional_bytes, ownership: borrowed}
@@ -180,6 +213,9 @@ operations:
     c_name: dyn_vm_create
     cpp_name: dynamips::vm::create
     go_name: dynamips.Runtime.CreateVM
+    c_signature: "dyn_result(constchar*,int32_t,constchar*,dyn_vm**)"
+    cpp_signature: "result<vm>(std::string_view,std::int32_t,std::string_view,std::string_view)noexcept"
+    go_signature: "(VMConfig)(*VM,error)"
     args:
       - {name: name, type: string}
       - {name: instance_id, type: int32}
@@ -198,6 +234,9 @@ operations:
     c_name: dyn_vm_start
     cpp_name: dynamips::vm::start
     go_name: dynamips.VM.Start
+    c_signature: "dyn_result(dyn_vm*)"
+    cpp_signature: "result<void>()noexcept"
+    go_signature: "()(error)"
     args:
       - {name: vm, type: "handle<vm>", ownership: borrowed}
     returns: {type: void}
@@ -213,6 +252,9 @@ operations:
     c_name: dyn_vm_stop
     cpp_name: dynamips::vm::stop
     go_name: dynamips.VM.Stop
+    c_signature: "dyn_result(dyn_vm*)"
+    cpp_signature: "result<void>()noexcept"
+    go_signature: "()(error)"
     args:
       - {name: vm, type: "handle<vm>", ownership: borrowed}
     returns: {type: void}
@@ -228,6 +270,9 @@ operations:
     c_name: dyn_vm_get_status
     cpp_name: dynamips::vm::status
     go_name: dynamips.VM.Status
+    c_signature: "dyn_result(constdyn_vm*,dyn_vm_status*)"
+    cpp_signature: "result<vm_status>()constnoexcept"
+    go_signature: "()(VMStatus,error)"
     args:
       - {name: vm, type: "handle<vm>", ownership: borrowed}
     returns: {type: vm_status}
@@ -243,6 +288,9 @@ operations:
     c_name: dyn_vm_set_ram
     cpp_name: dynamips::vm::set_ram
     go_name: dynamips.VM.SetRAM
+    c_signature: "dyn_result(dyn_vm*,uint32_t)"
+    cpp_signature: "result<void>(std::uint32_t)noexcept"
+    go_signature: "(uint32)(error)"
     args:
       - {name: vm, type: "handle<vm>", ownership: borrowed}
       - {name: megabytes, type: uint32}
@@ -259,6 +307,9 @@ operations:
     c_name: dyn_vm_attach_nio
     cpp_name: dynamips::vm::attach_nio
     go_name: dynamips.VM.AttachNIO
+    c_signature: "dyn_result(dyn_vm*,uint32_t,uint32_t,dyn_nio*)"
+    cpp_signature: "result<void>(std::uint32_t,std::uint32_t,nio&)noexcept"
+    go_signature: "(uint32,uint32,*NIO)(error)"
     args:
       - {name: vm, type: "handle<vm>", ownership: borrowed}
       - {name: slot, type: uint32}
@@ -277,6 +328,9 @@ operations:
     c_name: dyn_vm_extract_config
     cpp_name: dynamips::vm::extract_config
     go_name: dynamips.VM.ExtractConfig
+    c_signature: "dyn_result(dyn_vm*,dyn_bytes*,dyn_bytes*)"
+    cpp_signature: "result<vm_config_data>()noexcept"
+    go_signature: "()(ConfigData,error)"
     args:
       - {name: vm, type: "handle<vm>", ownership: borrowed}
     returns: {type: vm_config_data, ownership: copied_from_owned_native_buffers}

@@ -16,6 +16,9 @@ operations:
     c_name: dyn_nio_create_udp
     cpp_name: dynamips::nio::create_udp
     go_name: dynamips.Runtime.CreateUDP
+    c_signature: "dyn_result(constchar*,uint16_t,constchar*,uint16_t,dyn_nio**)"
+    cpp_signature: "result<nio>(std::string_view,std::uint16_t,std::string_view,std::uint16_t)noexcept"
+    go_signature: "(UDPConfig)(*NIO,error)"
     args:
       - {name: name, type: string}
       - {name: local_port, type: port}
@@ -35,6 +38,9 @@ operations:
     c_name: dyn_nio_get_stats
     cpp_name: dynamips::nio::stats
     go_name: dynamips.NIO.Stats
+    c_signature: "dyn_result(constdyn_nio*,dyn_nio_stats*)"
+    cpp_signature: "result<nio_stats>()constnoexcept"
+    go_signature: "()(NIOStats,error)"
     args:
       - {name: nio, type: "handle<nio>", ownership: borrowed}
     returns: {type: nio_stats}
@@ -50,6 +56,9 @@ operations:
     c_name: dyn_nio_create_udp_auto
     cpp_name: dynamips::nio::create_udp_auto
     go_name: dynamips.Runtime.CreateUDPAuto
+    c_signature: "dyn_result(constchar*,constchar*,uint16_t,uint16_t,dyn_nio**,uint16_t*)"
+    cpp_signature: "result<udp_auto_result>(std::string_view,std::string_view,std::uint16_t,std::uint16_t)noexcept"
+    go_signature: "(UDPAutoConfig)(*NIO,uint16,error)"
     args:
       - {name: name, type: string}
       - {name: local_addr, type: string}
@@ -68,6 +77,9 @@ operations:
     c_name: dyn_nio_setup_filter
     cpp_name: dynamips::nio::setup_filter
     go_name: dynamips.NIO.SetupFilter
+    c_signature: "dyn_result(dyn_nio*,int32_t,size_t,constchar*const[])"
+    cpp_signature: "result<void>(filter_direction,std::span<conststd::string_view>)noexcept"
+    go_signature: "(FilterDirection,...string)(error)"
     args:
       - {name: nio, type: "handle<nio>", ownership: borrowed}
       - {name: direction, type: filter_direction}
@@ -85,6 +97,9 @@ operations:
     c_name: dyn_nio_connect_udp_auto
     cpp_name: dynamips::nio::connect_udp_auto
     go_name: dynamips.NIO.ConnectUDPAuto
+    c_signature: "dyn_result(dyn_nio*,constchar*,uint16_t)"
+    cpp_signature: "result<void>(std::string_view,std::uint16_t)noexcept"
+    go_signature: "(string,uint16)(error)"
     args:
       - {name: nio, type: "handle<nio>", ownership: borrowed}
       - {name: remote_host, type: string}
@@ -102,6 +117,9 @@ operations:
     c_name: dyn_nio_create_tap
     cpp_name: dynamips::nio::create_tap
     go_name: dynamips.Runtime.CreateTAP
+    c_signature: "dyn_result(constchar*,constchar*,dyn_nio**)"
+    cpp_signature: "result<nio>(std::string_view,std::string_view)noexcept"
+    go_signature: "(TAPConfig)(*NIO,error)"
     args:
       - {name: name, type: string}
       - {name: device, type: string}
@@ -118,6 +136,9 @@ operations:
     c_name: dyn_nio_delete
     cpp_name: dynamips::nio::remove
     go_name: dynamips.NIO.Delete
+    c_signature: "dyn_result(dyn_nio**)"
+    cpp_signature: "result<void>()noexcept"
+    go_signature: "()(error)"
     args:
       - {name: nio, type: "handle<nio>", ownership: consumed_on_success}
     returns: {type: void}
