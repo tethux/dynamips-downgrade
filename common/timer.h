@@ -1,10 +1,3 @@
-/*
- * Cisco router simulation platform.
- * Copyright (c) 2005,2006 Christophe Fillot (cf@utc.fr)
- *
- * timer.h: Management of timers.
- */
-
 #pragma once
 
 #include "dynamips_common.h"
@@ -17,8 +10,8 @@ typedef int (*timer_proc)(void *, timer_entry_t *);
 extern "C" {
 #endif
 
-int timer_init(void);
 void timer_flush_queues(void);
+int timer_init(void);
 
 /* Intervals and offsets are in milliseconds; zero IDs indicate failure. */
 timer_id timer_create_entry(m_tmcnt_t interval, int boundary, int level,

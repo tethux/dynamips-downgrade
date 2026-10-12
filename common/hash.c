@@ -16,6 +16,19 @@
 #include "utils.h"
 #include "hash.h"
 
+typedef struct hash_node hash_node_t;
+struct hash_node {
+  void *key, *value;
+  hash_node_t *next;
+};
+
+struct hash_table {
+  int size, nnodes;
+  hash_node_t **nodes;
+  hash_fcompute hash_func;
+  hash_fcompare key_cmp;
+};
+
 /* Compare two strings */
 int str_equal(void *s1, void *s2) {
   return (strcmp((char *)s1, (char *)s2) == 0);

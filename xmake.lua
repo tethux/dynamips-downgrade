@@ -1,5 +1,7 @@
+local version = "0.2.27"
+
 set_project("dynamips")
-set_version("0.2.27")
+set_version(version)
 set_languages("c23", "cxx23")
 set_toolchains("clang")
 
@@ -55,7 +57,7 @@ local jit_arch = get_config("dynamips_arch") or default_jit_arch
 local generated_dir = path.join("$(builddir)", "generated", code)
 
 rule("dynamips.microcode")
-    before_buildcmd_file( function (target, batchcmds, sourcefile, opt)
+    before_buildcmd_file(function (target, batchcmds, sourcefile, opt)
         local outputfile = path.join("build", "generated", code, path.basename(sourcefile) .. "_dump.inc")
         local address = path.basename(sourcefile) == "mips64_microcode" and "0xbfc00000" or "0xfff00000"
         batchcmds:show_progress(opt.progress, "${color.build.object}generating %s", outputfile)
@@ -67,47 +69,46 @@ rule("dynamips.microcode")
     end)
 rule_end()
 
-local function configure_dynamips_target(target_name)
-    target(target_name)
-        set_warnings("all")
-        set_optimize("fastest")
-        add_cflags("-fasm", "-fomit-frame-pointer", { force = true })
-        add_includedirs("common", code, generated_dir)
-        add_includedirs("include", { public = true })
-        add_defines(
-            'DYNAMIPS_VERSION="0.2.27"',
-            'JIT_ARCH="' .. jit_arch .. '"',
-            "JIT_CPU=CPU_" .. jit_arch,
-            'MIPS64_ARCH_INC_FILE="mips64_' .. jit_arch .. '_trans.h"',
-            'PPC32_ARCH_INC_FILE="ppc32_' .. jit_arch .. '_trans.h"',
-            "HAS_POSIX_MEMALIGN=1",
-            "HAS_RFC2553=1",
-            "_FILE_OFFSET_BITS=64",
-            "_LARGEFILE_SOURCE",
-            "_LARGEFILE64_SOURCE",
-            "_DEFAULT_SOURCE",
-            "OSNAME=" .. (is_plat("macosx") and "Darwin" or is_plat("windows") and "Windows" or "Linux")
-        )
-        add_packages("libelf", { public = true })
-        if is_plat("linux") then
-            add_syslinks("dl", "rt", "nsl", "pthread", { public = true })
-        else
-            add_syslinks("pthread", { public = true })
-        end
-        if has_config("enable_linux_eth") and is_plat("linux") then
-            add_defines("LINUX_ETH")
-        end
-        if has_config("enable_gen_eth") and has_package("libpcap") then
-            add_defines("GEN_ETH")
-            add_packages("libpcap", { public = true })
-        end
-        if jit_arch == "amd64" then
-            add_cflags("-m64", { force = true })
-            add_ldflags("-m64", { force = true })
-        elseif jit_arch == "x86" or jit_arch == "ppc32" then
-            add_cflags("-m32", { force = true })
-            add_ldflags("-m32", { force = true })
-        end
+local function configure_dynamips_target()
+    set_warnings("all")
+    set_optimize("fastest")
+    add_cflags("-fasm", "-fomit-frame-pointer", { force = true })
+    add_includedirs("common", code, generated_dir)
+    add_includedirs("include", { public = true })
+    add_defines(
+        'DYNAMIPS_VERSION="' .. version .. '"',
+        'JIT_ARCH="' .. jit_arch .. '"',
+        "JIT_CPU=CPU_" .. jit_arch,
+        'MIPS64_ARCH_INC_FILE="mips64_' .. jit_arch .. '_trans.h"',
+        'PPC32_ARCH_INC_FILE="ppc32_' .. jit_arch .. '_trans.h"',
+        "HAS_POSIX_MEMALIGN=1",
+        "HAS_RFC2553=1",
+        "_FILE_OFFSET_BITS=64",
+        "_LARGEFILE_SOURCE",
+        "_LARGEFILE64_SOURCE",
+        "_DEFAULT_SOURCE",
+        "OSNAME=" .. (is_plat("macosx") and "Darwin" or is_plat("windows") and "Windows" or "Linux")
+    )
+    add_packages("libelf", { public = true })
+    if is_plat("linux") then
+        add_syslinks("dl", "rt", "nsl", "pthread", { public = true })
+    else
+        add_syslinks("pthread", { public = true })
+    end
+    if has_config("enable_linux_eth") and is_plat("linux") then
+        add_defines("LINUX_ETH")
+    end
+    if has_config("enable_gen_eth") and has_package("libpcap") then
+        add_defines("GEN_ETH")
+        add_packages("libpcap", { public = true })
+    end
+    if jit_arch == "amd64" then
+        add_cflags("-m64", { force = true })
+        add_ldflags("-m64", { force = true })
+    elseif jit_arch == "x86" or jit_arch == "ppc32" then
+        add_cflags("-m32", { force = true })
+        add_ldflags("-m32", { force = true })
+    end
 end
 
 target("rom2c")
@@ -120,19 +121,25 @@ target("rom2c")
     add_includedirs("common", code)
     add_packages("libelf")
     add_files("common/rom2c.c")
+target_end()
 
-configure_dynamips_target("dynamips-core")
+target("dynamips-core")
+    configure_dynamips_target()
     set_kind("static")
     add_packages("asio")
     add_packages("zlib", { public = true })
-    add_files("common/ptask.cpp", "common/crc.cpp", "common/timer.cpp")
+    add_files(
+        "common/base64.cppm", "common/base64_compat.cpp",
+        "common/crc.cpp", "common/hash.cpp", "common/ptask.cpp",
+        "common/rbtree.cpp", "common/timer.cpp"
+    )
     add_deps("rom2c")
     add_rules("dynamips.microcode")
     add_headerfiles("include/(dynamips/*.h)")
-    add_files("common/*.c|dynamips_bridge_*.c|dynamips_main.c|hv_*.c|ppc32_nojit_trans.c|ppc32_ppc32_trans.c|profiler.c|rom2c.c")
-    remove_files("common/ptask.c")
-    remove_files("common/crc.c")
-    remove_files("common/timer.c")
+    add_files("common/*.c"
+        .. "|dynamips_bridge_*.c|dynamips_main.c|hv_*.c"
+        .. "|ppc32_nojit_trans.c|ppc32_ppc32_trans.c|profiler.c|rom2c.c"
+        .. "|base64.c|crc.c|hash.c|ptask.c|rbtree.c|timer.c")
     after_install(function (target)
         for _, file in ipairs(target:pkg("zlib"):get("libfiles")) do
             os.cp(file, path.join(target:installdir(), "lib"))
@@ -157,12 +164,10 @@ configure_dynamips_target("dynamips-core")
             add_files(code .. "/ppc32_" .. jit_arch .. "_trans.c")
         end
     end
-    remove_files("common/rbtree.c")
-    remove_files("common/base64.c")
-    add_files("common/rbtree.cpp")
-    add_files("common/base64.cppm", "common/base64_compat.cpp")
+target_end()
 
-configure_dynamips_target("dynamips-bindings")
+target("dynamips-bindings")
+    configure_dynamips_target()
     set_kind("static")
     add_deps("dynamips-core", { public = true })
     add_headerfiles("include/(dynamips/*.h)")
@@ -170,35 +175,27 @@ configure_dynamips_target("dynamips-bindings")
     add_files("modules/*.cppm", { public = true })
     add_files("bindings/*.cpp")
     add_files("common/dynamips_bridge_*.c")
+target_end()
 
-configure_dynamips_target("dynamips-legacy-hypervisor")
+target("dynamips-legacy-hypervisor")
+    configure_dynamips_target()
     set_kind("static")
     set_default(false)
     add_deps("dynamips-core", { public = true })
     add_files("common/hv_*.c", "stable/hv_vm.c", "stable/hypervisor.c")
+target_end()
 
 target("dynamips-module-test")
     set_default(false)
     set_kind("binary")
     add_deps("dynamips-bindings")
     add_files("tests/module.cpp")
+target_end()
 
-configure_dynamips_target("dynamips-crc-legacy-test")
-    set_default(false)
-    set_kind("binary")
-    add_packages("zlib")
-    add_defines('CRC_IMPLEMENTATION="legacy"')
-    add_files("tests/crc.cpp", "tests/crc_legacy.c", "common/crc.c")
-
-configure_dynamips_target("dynamips-crc-zlib-test")
-    set_default(false)
-    set_kind("binary")
-    add_packages("zlib")
-    add_defines('CRC_IMPLEMENTATION="zlib"', "CRC_TEST_ZLIB")
-    add_files("tests/crc.cpp", "tests/crc_legacy.c", "common/crc.c", "common/crc.cpp")
-
-configure_dynamips_target("dynamips")
+target("dynamips")
+    configure_dynamips_target()
     set_kind("binary")
     add_deps("dynamips-core", "dynamips-legacy-hypervisor")
     add_files("common/dynamips_main.c")
     add_installfiles("LICENSE", "README.md", { prefixdir = "share/doc/dynamips" })
+target_end()
