@@ -37,6 +37,13 @@ option("system_packages")
     set_description("Use system libelf and libpcap")
 option_end()
 
+option("mempool_backend")
+    set_default("legacy")
+    set_values("legacy", "pmr")
+    set_showmenu(true)
+    set_description("Select the memory-pool backend for comparison")
+option_end()
+
 if has_config("system_packages") then
     add_requires("libelf", { system = true })
 else
@@ -140,6 +147,10 @@ target("dynamips-core")
         .. "|dynamips_bridge_*.c|dynamips_main.c|hv_*.c"
         .. "|ppc32_nojit_trans.c|ppc32_ppc32_trans.c|profiler.c|rom2c.c"
         .. "|base64.c|crc.c|hash.c|ptask.c|rbtree.c|timer.c")
+    if get_config("mempool_backend") == "pmr" then
+        remove_files("common/mempool.c")
+        add_files("common/mempool.cpp")
+    end
     after_install(function (target)
         for _, file in ipairs(target:pkg("zlib"):get("libfiles")) do
             os.cp(file, path.join(target:installdir(), "lib"))
@@ -198,4 +209,20 @@ target("dynamips")
     add_deps("dynamips-core", "dynamips-legacy-hypervisor")
     add_files("common/dynamips_main.c")
     add_installfiles("LICENSE", "README.md", { prefixdir = "share/doc/dynamips" })
+target_end()
+
+target("dynamips-mempool-legacy-test")
+    configure_dynamips_target()
+    set_default(false)
+    set_kind("binary")
+    add_defines('MEMPOOL_IMPLEMENTATION="legacy"')
+    add_files("tests/mempool.cpp", "tests/mempool_sizes.c", "common/mempool.c")
+target_end()
+
+target("dynamips-mempool-pmr-test")
+    configure_dynamips_target()
+    set_default(false)
+    set_kind("binary")
+    add_defines('MEMPOOL_IMPLEMENTATION="pmr"', "MEMPOOL_TEST_PMR")
+    add_files("tests/mempool.cpp", "tests/mempool_sizes.c", "common/mempool.cpp")
 target_end()

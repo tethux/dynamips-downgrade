@@ -11,8 +11,9 @@
 #include <sys/types.h>
 #include <sys/time.h>
 #include <pthread.h>
+#include <stddef.h>
 
-#include "utils.h"
+#include "dynamips_common.h"
 
 /* Memory Pool "Fixed" Flag */
 #define MEMPOOL_FIXED 1
@@ -29,7 +30,11 @@ struct memblock {
   size_t block_size;       /* Block size (without header) */
   memblock_t *next, *prev; /* Double linked list pointers */
   mempool_t *pool;         /* Pool which contains this block */
-  m_uint64_t data[0];      /* Memory block itself */
+#ifdef __cplusplus
+  alignas(max_align_t) m_uint64_t data[0];
+#else
+  _Alignas(max_align_t) m_uint64_t data[0];
+#endif
 };
 
 /* Memory Pool */
@@ -41,6 +46,7 @@ struct mempool {
   int nr_blocks;          /* Number of blocks in this pool */
   size_t total_size;      /* Total bytes allocated */
   size_t max_size;        /* Maximum memory */
+  void *backend;          /* Private allocator state */
 };
 
 /* Lock and unlock access to a memory pool */
@@ -59,6 +65,10 @@ static inline void mp_foreach(mempool_t *pool, mp_foreach_cbk cbk, void *arg) {
 }
 
 /* Allocate a new block in specified pool */
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 void *mp_alloc(mempool_t *pool, size_t size);
 
 /* Allocate a new block which will not be zeroed */
@@ -90,5 +100,9 @@ mempool_t *mp_create_fixed_pool(mempool_t *mp, char *name);
 
 /* Create a new pool */
 mempool_t *mp_create_pool(char *name);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

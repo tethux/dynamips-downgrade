@@ -44,7 +44,7 @@ run = "go test ./..."
 description = "boot a local C7200 IOS archive through embedded and legacy APIs"
 run = """
 test -n "${DYNAMIPS_IOS_ARCHIVE:-}" || { echo 'set DYNAMIPS_IOS_ARCHIVE to a local C7200 zip archive' >&2; exit 2; }
-xmake f -m debug --dynamips_arch=amd64 -y
+xmake f -m debug --dynamips_arch=amd64 --mempool_backend="${DYNAMIPS_MEMPOOL_BACKEND:-legacy}" -y
 xmake -j "${DYNAMIPS_BUILD_JOBS:-14}" -y
 xmake install -o "$PWD/build/install" dynamips-bindings dynamips-core
 export PKG_CONFIG_PATH="$PWD/build/install/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
