@@ -1,30 +1,35 @@
-# Scoped binding work
+# Core migration
 
-Tethux owns topology and inventory. The legacy hypervisor is behavioral
-documentation, not the API specification. Bind only operations marked
-`required` in `bindings/schema/`. `deferred` means potentially useful later;
-`legacy_only` means the operation disappears with the text hypervisor.
-Do not backfill adjacent commands or pursue hypervisor parity.
+Tethux in `../sme` owns topology, inventory, provider orchestration, storage
+leases, port allocation, and the external Ethernet fabric. Read the relevant
+Tethux consumer before choosing a replacement. Do not recreate those features
+inside Dynamips or pursue legacy hypervisor parity.
 
-Read `bindings/README.md`, the relevant domain schema, each assigned `cmd_*`
-handler, and every called function before implementing a binding. Preserve
-direct state changes and side effects in the domain bridge. Never call a
-`cmd_*` handler or pass hypervisor command strings through the new API.
+Dynamips owns emulation: native VM state and lifecycle, CPUs, guest memory,
+cards, device behavior, native state-file formats, console endpoints, and NIO
+endpoints attached to devices. Tethux orchestration does not make `stable/vm.c`
+or native object lifetimes redundant. Tethux chooses storage directories;
+Dynamips reads and writes the native files within them.
 
-Every required operation needs a typed C ABI, a C++23 module binding, a Go
-binding when Tethux uses it, and a domain schema entry. Use public handles
-for relationships. Return typed values, owned bytes or snapshots, and explicit
-slices instead of CLI text or base64. Clear C outputs before work and release
-native ownership explicitly. Keep C++ declarations in the relevant module
-partition. C++ handles are move-only RAII objects; Go handles use explicit
-Close. Calls remain externally serialized. Do not call Go from native workers.
+Keep existing public contracts. `bindings/README.md` and `bindings/schema/`
+document ownership and API scope; they are references, not a new binding-work
+assignment. Do not expand APIs or regenerate bindings as incidental porting
+work. Preserve registry references, externally serialized native calls, and
+worker teardown before freeing callback state. Do not call Go from native
+workers or let C++ exceptions cross the C ABI.
 
-Do not invent deletion, ownership, platform casts, callback, or console
-semantics. Record unresolved semantics in the domain schema and resolve them
-before calling the required scope complete. Verify new bindings through the
-real integration where safely available. Run focused `mise` tasks;
-`mise run compiledb` prepares clangd for C and C++.
+Port a bounded mechanism after auditing its callers, ownership, locking, and
+failure behavior. Follow surrounding C++ style and `include/dynamips/macros.h`.
+Keep C-facing declarations usable from C; introduce a C++ module only when it
+serves an actual consumer. Do not rewrite constant tables or retained C bridge
+files merely to reduce the C file count. Device and JIT work does not require
+porting every utility first.
 
-Domain ownership keeps parallel work independent: a VM worker edits VM files,
-a NIO worker edits NIO files, and a platform worker edits platform files.
-Coordinate any common boundary change before editing shared files.
+Use focused `mise.toml` tasks. Verify the changed behavior with real inputs;
+a build or IOS boot alone does not prove packet delivery or teardown safety.
+When switching an implementation, check xmake source selection and packaged
+native archives so Go tests exercise the new code. `mise run compiledb` prepares
+clangd. Keep legacy sources unless their deletion is requested.
+
+Keep detailed migration tables and progress in locally excluded planning files,
+not this file. Describe changes, create new jj changes, or push only when asked.

@@ -924,7 +924,10 @@ static dyn_result runtime_init(int embedded, int argc, char *argv[]) {
     return DYN_ERR_START_FAILED;
 
   /* Initialize object registry */
-  registry_init();
+  if (registry_init() == -1) {
+    status = DYN_ERR_START_FAILED;
+    goto fail_timer;
+  }
 
   /* Initialize ATM module (for HEC checksums) */
   atm_init();

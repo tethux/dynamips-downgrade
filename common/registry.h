@@ -60,6 +60,10 @@ typedef void (*registry_foreach)(registry_entry_t *entry, void *opt_arg,
 /* Registry "exec" callback */
 typedef int (*registry_exec)(void *data, void *opt_arg);
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /* Initialize registry */
 int registry_init(void);
 
@@ -102,5 +106,9 @@ int registry_delete_type(int object_type, registry_exec cb, void *opt);
 
 /* Dump the registry */
 void registry_dump(void);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

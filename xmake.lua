@@ -133,13 +133,14 @@ target("dynamips-core")
         "common/crc.cpp", "common/hash.cpp", "common/mempool.cpp", "common/ptask.cpp",
         "common/rbtree.cpp", "common/timer.cpp"
     )
+    add_files("common/registry.cppm", { public = true })
     add_deps("rom2c")
     add_rules("dynamips.microcode")
     add_headerfiles("include/(dynamips/*.h)")
     add_files("common/*.c"
         .. "|dynamips_bridge_*.c|dynamips_main.c|hv_*.c"
         .. "|ppc32_nojit_trans.c|ppc32_ppc32_trans.c|profiler.c|rom2c.c"
-        .. "|base64.c|crc.c|hash.c|mempool.c|ptask.c|rbtree.c|timer.c")
+        .. "|base64.c|crc.c|hash.c|mempool.c|ptask.c|rbtree.c|timer.c|registry.c")
     after_install(function (target)
         for _, file in ipairs(target:pkg("zlib"):get("libfiles")) do
             os.cp(file, path.join(target:installdir(), "lib"))
