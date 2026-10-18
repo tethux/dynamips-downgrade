@@ -10,6 +10,10 @@
 
 #include "dynamips_common.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /* ROMMON variable */
 struct rommon_var {
   struct rommon_var *next;
@@ -41,5 +45,9 @@ int rommon_var_get(struct rommon_var_list *rvl, char *name, char *buffer,
 
 /* Clear all the variables */
 void rommon_var_clear(struct rommon_var_list *rvl);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
