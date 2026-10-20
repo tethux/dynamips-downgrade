@@ -131,9 +131,9 @@ target("dynamips-core")
     add_files(
         "common/base64.cppm", "common/base64_compat.cpp",
         "common/crc.cpp", "common/hash.cpp", "common/mempool.cpp", "common/ptask.cpp",
-        "common/rbtree.cpp", "common/timer.cpp", "common/rommon_var.cpp", "common/host_memory.cpp"
+        "common/rbtree.cpp", "common/timer.cpp", "common/rommon_var.cpp", "common/host_memory.cpp", "common/net_packet.cpp"
     )
-    add_defines("DYNAMIPS_CPP_HOST_MEMORY")
+    add_defines("DYNAMIPS_CPP_HOST_MEMORY", "DYNAMIPS_CPP_PACKET")
     add_files("common/registry.cppm", { public = true })
     add_deps("rom2c")
     add_rules("dynamips.microcode")

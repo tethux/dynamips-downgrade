@@ -47,6 +47,7 @@ void ipv6_init_masks(void) {
   }
 }
 
+#ifndef DYNAMIPS_CPP_PACKET
 /* Convert an IPv4 address into a string */
 char *n_ip_ntoa(char *buffer, n_ip_addr_t ip_addr) {
   u_char *p = (u_char *)&ip_addr;
@@ -253,6 +254,8 @@ char *n_eth_ntoa(char *buffer, n_eth_addr_t *addr, int format) {
           addr->eth_addr_byte[4], addr->eth_addr_byte[5]);
   return (buffer);
 }
+#endif
+
 
 #if HAS_RFC2553
 /* Create a new socket to connect to specified host */
@@ -699,6 +702,7 @@ int udp_listen_range(char *ip_addr, int port_start, int port_end, int *port) {
   return (ip_listen_range(ip_addr, port_start, port_end, port, SOCK_DGRAM));
 }
 
+#ifndef DYNAMIPS_CPP_PACKET
 /*
  * ISL rewrite.
  *
@@ -770,6 +774,8 @@ void ip_compute_cksum(n_ip_hdr_t *hdr) {
   hdr->cksum = htons(~sum);
 }
 
+#endif
+
 /* Partial checksum (for UDP/TCP) */
 static inline m_uint32_t ip_cksum_partial(m_uint8_t *buf, int len) {
   m_uint32_t sum = 0;
@@ -831,6 +837,7 @@ int ip_cksum_partial_test(void) {
 #undef N_BUF
 }
 
+#ifndef DYNAMIPS_CPP_PACKET
 /* Compute TCP/UDP checksum */
 m_uint16_t pkt_ctx_tcp_cksum(n_pkt_ctx_t *ctx, int ph) {
   m_uint32_t sum;
@@ -969,6 +976,8 @@ int pkt_ctx_analyze(n_pkt_ctx_t *ctx, m_uint8_t *pkt, size_t pkt_len) {
 
   return (TRUE);
 }
+
+#endif
 
 /* Dump packet context */
 void pkt_ctx_dump(n_pkt_ctx_t *ctx) {

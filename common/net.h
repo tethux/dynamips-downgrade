@@ -308,6 +308,10 @@ static inline int ip_bits_mask(n_ip_addr_t mask) {
   return (prefix);
 }
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /* Initialize IPv6 masks */
 void ipv6_init_masks(void);
 
@@ -375,5 +379,9 @@ int pkt_ctx_analyze(n_pkt_ctx_t *ctx, m_uint8_t *pkt, size_t pkt_len);
 
 /* Dump packet context */
 void pkt_ctx_dump(n_pkt_ctx_t *ctx);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
