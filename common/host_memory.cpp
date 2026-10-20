@@ -1,0 +1,80 @@
+#include "host_memory.h"
+
+#include <cerrno>
+#include <cstdio>
+#include <limits>
+
+namespace dynamips::host {
+namespace {
+fn failure(int value) -> std::unexpected<std::error_code> {
+  return std::unexpected(std::error_code{value, std::generic_category()});
+}
+using file = std::unique_ptr<FILE, decltype(&std::fclose)>;
+} // namespace
+
+fn read_file(const char *filename, bool read_contents) noexcept
+    -> std::expected<file_buffer, std::error_code> {
+  if (!filename)
+    return failure(EINVAL);
+  file input{std::fopen(filename, "rb"), std::fclose};
+  if (!input)
+    return failure(errno);
+  if (fseeko(input.get(), 0, SEEK_END) != 0)
+    return failure(errno);
+  const let length = ftello(input.get());
+  if (length < 0)
+    return failure(errno);
+  if (static_cast<unsigned long long>(length) >
+      std::numeric_limits<std::size_t>::max())
+    return failure(EOVERFLOW);
+  if (fseeko(input.get(), 0, SEEK_SET) != 0)
+    return failure(errno);
+  const let size = static_cast<std::size_t>(length);
+  owned_bytes bytes;
+  if (read_contents) {
+    // Empty configuration is distinct from an absent configuration.
+    bytes.reset(static_cast<unsigned char *>(std::malloc(size ? size : 1)));
+    if (!bytes)
+      return failure(ENOMEM);
+    if (std::fread(bytes.get(), 1, size, input.get()) != size)
+      return failure(std::ferror(input.get()) && errno ? errno : EIO);
+  }
+  if (std::fclose(input.release()) != 0)
+    return failure(errno);
+  return file_buffer{std::move(bytes), size};
+}
+
+fn allocate_aligned(std::size_t alignment, std::size_t size) noexcept
+    -> std::expected<owned_bytes, std::error_code> {
+  if (alignment < sizeof(void *) || (alignment & (alignment - 1)) != 0)
+    return failure(EINVAL);
+  void *ptr = nullptr;
+  const let status = posix_memalign(&ptr, alignment, size);
+  if (status != 0)
+    return failure(status);
+  return owned_bytes{static_cast<unsigned char *>(ptr)};
+}
+} // namespace dynamips::host
+
+cfn m_read_file(const char *filename, unsigned char **buffer,
+                std::size_t *length) -> int {
+  let loaded = dynamips::host::read_file(filename, buffer != nullptr);
+  if (!loaded) {
+    if (buffer)
+      *buffer = nullptr;
+    errno = loaded.error().value();
+    return -1;
+  }
+  if (length)
+    *length = loaded->size;
+  if (buffer)
+    *buffer = loaded->bytes.release();
+  return 0;
+}
+
+cfn m_memalign(std::size_t boundary, std::size_t size) -> void * {
+  let allocated = dynamips::host::allocate_aligned(boundary, size);
+  if (!allocated)
+    return nullptr;
+  return allocated->release();
+}

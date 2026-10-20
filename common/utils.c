@@ -300,6 +300,7 @@ char *m_fgets(char *buffer, int size, FILE *fd) {
   return buffer;
 }
 
+#ifndef DYNAMIPS_CPP_HOST_MEMORY
 /* Read a file and returns it in a buffer */
 int m_read_file(const char *filename, u_char **buffer, size_t *length) {
   FILE *fd;
@@ -358,6 +359,8 @@ void *m_memalign(size_t boundary, size_t size) {
   assert(((m_iptr_t)p & (boundary - 1)) == 0);
   return p;
 }
+
+#endif
 
 /* Block specified signal for calling thread */
 int m_signal_block(int sig) {
