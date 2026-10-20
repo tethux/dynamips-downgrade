@@ -5,6 +5,7 @@
 #include <cstdlib>
 #include <memory>
 #include <cstdint>
+#include <algorithm>
 
 extern "C" n_ip_addr_t ip_masks[N_IP_ADDR_BITS + 1];
 
@@ -190,28 +191,37 @@ namespace {
 fn word(const unsigned char *p) noexcept -> unsigned short {
   return static_cast<unsigned short>((p[0] << 8) | p[1]);
 }
-fn sum_bytes(bytes data, unsigned int seed) noexcept -> unsigned int {
-  for (std::size_t i = 0; i < data.size(); i += 2) {
-    seed += static_cast<unsigned int>(data[i]) << 8;
-    if (i + 1 < data.size())
-      seed += data[i + 1];
-    seed = (seed & 0xffff) + (seed >> 16);
-  }
-  return seed;
+fn sum_bytes(bytes data) noexcept -> unsigned int {
+  unsigned int sum = 0;
+  const let pairs = data.size() / 2;
+  for (std::size_t i = 0; i < pairs; ++i)
+    sum += (static_cast<unsigned int>(data[i * 2]) << 8) | data[i * 2 + 1];
+  if (data.size() & 1)
+    sum += static_cast<unsigned int>(data.back()) << 8;
+  return sum;
+}
+fn folded(unsigned int sum) noexcept -> unsigned short {
+  sum = (sum & 0xffff) + (sum >> 16);
+  sum = (sum & 0xffff) + (sum >> 16);
+  return static_cast<unsigned short>(~sum);
 }
 } // namespace
 
 fn checksum(bytes data, unsigned int seed) noexcept -> unsigned short {
   seed = (seed & 0xffff) + (seed >> 16);
-  let sum = sum_bytes(data, seed);
-  while (sum >> 16)
-    sum = (sum & 0xffff) + (sum >> 16);
-  return static_cast<unsigned short>(~sum);
+  while (!data.empty()) {
+    const let size = std::min(data.size(), std::size_t{65536});
+    seed += sum_bytes(data.first(size));
+    seed = (seed & 0xffff) + (seed >> 16);
+    data = data.subspan(size);
+  }
+  return folded(seed);
 }
 
-fn analyze(std::span<unsigned char> frame) noexcept
-    -> std::expected<n_pkt_ctx_t, error> {
-  n_pkt_ctx_t ctx{};
+static fn analyze_into(n_pkt_ctx_t &ctx,
+                       std::span<unsigned char> frame) noexcept
+    -> std::expected<void, error> {
+  ctx = {};
   ctx.pkt = frame.data();
   ctx.pkt_len = frame.size();
   if (frame.size() < N_ETH_HLEN)
@@ -227,7 +237,7 @@ fn analyze(std::span<unsigned char> frame) noexcept
     offset += 4;
   }
   if (type < N_ETH_MTU)
-    return ctx;
+    return {};
   ctx.flags |= N_PKT_CTX_FLAG_ETHV2;
   let payload = frame.subspan(offset);
   if (type == N_ETH_PROTO_ARP) {
@@ -243,11 +253,11 @@ fn analyze(std::span<unsigned char> frame) noexcept
     ctx.flags |= N_PKT_CTX_FLAG_L3_IP;
     ctx.l3 = payload.data();
     if ((payload[0] & 0xf0) != 0x40 || hlen < 20 || hlen > total)
-      return ctx;
+      return {};
     if (total > payload.size())
       return std::unexpected(error::truncated);
-    if (checksum(payload.first(hlen)) != 0)
-      return ctx;
+    if (folded(sum_bytes(payload.first(hlen))) != 0)
+      return {};
     const let frag = word(payload.data() + 6);
     if ((frag & N_IP_OFFMASK) || (frag & N_IP_FLAG_MF))
       ctx.flags |= N_PKT_CTX_FLAG_IP_FRAG;
@@ -264,6 +274,14 @@ fn analyze(std::span<unsigned char> frame) noexcept
     ctx.flags |= N_PKT_CTX_FLAG_IPH_OK;
     ctx.l4 = payload.data() + hlen;
   }
+  return {};
+}
+
+fn analyze(std::span<unsigned char> frame) noexcept
+    -> std::expected<n_pkt_ctx_t, error> {
+  n_pkt_ctx_t ctx;
+  if (let parsed = analyze_into(ctx, frame); !parsed)
+    return std::unexpected(parsed.error());
   return ctx;
 }
 
@@ -296,28 +314,27 @@ fn board_id(const char *text, int encoding) noexcept
 
 cfn ip_verify_cksum(n_ip_hdr_t *hdr) -> int {
   let *p = reinterpret_cast<unsigned char *>(hdr);
-  return dynamips::packet::checksum(
-             {p, static_cast<std::size_t>(p[0] & 15) * 4}) == 0;
+  return dynamips::packet::folded(dynamips::packet::sum_bytes(
+             {p, static_cast<std::size_t>(p[0] & 15) * 4})) == 0;
 }
 cfn ip_compute_cksum(n_ip_hdr_t *hdr) -> void {
   let *p = reinterpret_cast<unsigned char *>(hdr);
   p[10] = p[11] = 0;
-  const let value =
-      dynamips::packet::checksum({p, static_cast<std::size_t>(p[0] & 15) * 4});
+  const let value = dynamips::packet::folded(dynamips::packet::sum_bytes(
+      {p, static_cast<std::size_t>(p[0] & 15) * 4}));
   p[10] = static_cast<unsigned char>(value >> 8);
   p[11] = static_cast<unsigned char>(value);
 }
 cfn pkt_ctx_analyze(n_pkt_ctx_t *ctx, m_uint8_t *pkt, size_t len) -> int {
   if (!ctx || (!pkt && len))
     return FALSE;
-  let parsed = dynamips::packet::analyze({pkt, len});
+  let parsed = dynamips::packet::analyze_into(*ctx, {pkt, len});
   if (!parsed) {
     *ctx = {};
     ctx->pkt = pkt;
     ctx->pkt_len = len;
     return FALSE;
   }
-  *ctx = *parsed;
   return TRUE;
 }
 cfn pkt_ctx_ip_analyze_l4(n_pkt_ctx_t *ctx) -> int {
@@ -348,18 +365,15 @@ cfn pkt_ctx_tcp_cksum(n_pkt_ctx_t *ctx, int ph) -> m_uint16_t {
   const std::size_t skip = ctx->ip_l4_proto == N_IP_PROTO_TCP   ? 16
                            : ctx->ip_l4_proto == N_IP_PROTO_UDP ? 6
                                                                 : len;
-  unsigned int sum = 0;
-  for (std::size_t i = 0; i < len; ++i) {
-    if (!(ctx->flags & N_PKT_CTX_FLAG_IP_FRAG) && (i == skip || i == skip + 1))
-      continue;
-    sum += static_cast<unsigned int>(data[i]) << ((i & 1) ? 0 : 8);
-  }
+  unsigned int sum = sum_bytes({data, len});
+  if (!(ctx->flags & N_PKT_CTX_FLAG_IP_FRAG) && skip + 1 < len)
+    sum -= (static_cast<unsigned int>(data[skip]) << 8) | data[skip + 1];
   if (ph) {
     for (std::size_t i = 12; i < 20; i += 2)
       sum += (ip[i] << 8) | ip[i + 1];
     sum += ctx->ip_l4_proto + len;
   }
-  return checksum({}, sum);
+  return folded(sum);
 }
 cfn cisco_isl_rewrite(m_uint8_t *pkt, m_uint32_t len) -> void {
   static constexpr unsigned char address[] = {1, 0, 12, 0, 16, 0};
