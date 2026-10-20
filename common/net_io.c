@@ -37,6 +37,7 @@
 #include "registry.h"
 #include "net.h"
 #include "net_io.h"
+#include "net_io_udp.h"
 #include "net_io_filter.h"
 #include "ptask.h"
 
@@ -214,7 +215,6 @@ ssize_t netio_send(netio_desc_t *nio, void *pkt, size_t len) {
 /* Receive a packet through a NetIO descriptor */
 ssize_t netio_recv(netio_desc_t *nio, void *pkt, size_t max_len) {
   ssize_t len;
-  int res;
 
   if (!nio)
     return (-1);
@@ -224,6 +224,11 @@ ssize_t netio_recv(netio_desc_t *nio, void *pkt, size_t max_len) {
   if ((len = nio->recv(nio->dptr, pkt, max_len)) <= 0)
     return (-1);
 
+  return netio_receive_dispatch(nio, pkt, len);
+}
+
+ssize_t netio_receive_dispatch(netio_desc_t *nio, void *pkt, ssize_t len) {
+  int res;
   if (nio->debug) {
     printf("NIO %s: receiving a packet of %ld bytes:\n", nio->name, (long)len);
     mem_dump(stdout, pkt, len);
@@ -878,7 +883,8 @@ netio_desc_t *netio_desc_create_tcp_ser(char *nio_name, char *port) {
  */
 
 /* Free a NetIO UDP descriptor */
-static void netio_udp_free(netio_inet_desc_t *nid) {
+static void netio_udp_free(void *desc) {
+  netio_inet_desc_t *nid = desc;
   if (nid->remote_host) {
     free(nid->remote_host);
     nid->remote_host = NULL;
@@ -889,14 +895,14 @@ static void netio_udp_free(netio_inet_desc_t *nid) {
 }
 
 /* Send a packet to an UDP socket */
-static ssize_t netio_udp_send(netio_inet_desc_t *nid, void *pkt,
-                              size_t pkt_len) {
+static ssize_t netio_udp_send(void *desc, void *pkt, size_t pkt_len) {
+  netio_inet_desc_t *nid = desc;
   return (send(nid->fd, pkt, pkt_len, 0));
 }
 
 /* Receive a packet from an UDP socket */
-static ssize_t netio_udp_recv(netio_inet_desc_t *nid, void *pkt,
-                              size_t max_len) {
+static ssize_t netio_udp_recv(void *desc, void *pkt, size_t max_len) {
+  netio_inet_desc_t *nid = desc;
   return (recvfrom(nid->fd, pkt, max_len, 0, NULL, NULL));
 }
 
@@ -932,9 +938,9 @@ netio_desc_t *netio_desc_create_udp(char *nio_name, int local_port,
   }
 
   nio->type = NETIO_TYPE_UDP;
-  nio->send = (void *)netio_udp_send;
-  nio->recv = (void *)netio_udp_recv;
-  nio->free = (void *)netio_udp_free;
+  nio->send = netio_udp_send;
+  nio->recv = netio_udp_recv;
+  nio->free = netio_udp_free;
   nio->save_cfg = netio_udp_save_cfg;
   nio->dptr = &nio->u.nid;
 
@@ -977,7 +983,7 @@ int netio_udp_auto_connect(netio_desc_t *nio, char *host, int port) {
 
   nid->remote_port = port;
 
-  if (ip_connect_fd(nid->fd, nid->remote_host, nid->remote_port) < 0) {
+  if (netio_udp_rxl_connect(nio, nid->remote_host, nid->remote_port) < 0) {
     free(nid->remote_host);
     nid->remote_host = NULL;
     return (-1);
@@ -1010,9 +1016,9 @@ netio_desc_t *netio_desc_create_udp_auto(char *nio_name, char *local_addr,
   }
 
   nio->type = NETIO_TYPE_UDP_AUTO;
-  nio->send = (void *)netio_udp_send;
-  nio->recv = (void *)netio_udp_recv;
-  nio->free = (void *)netio_udp_free;
+  nio->send = netio_udp_send;
+  nio->recv = netio_udp_recv;
+  nio->free = netio_udp_free;
   nio->save_cfg = netio_udp_save_cfg;
   nio->dptr = &nio->u.nid;
 
@@ -1394,6 +1400,9 @@ static int netio_free(void *data, void *arg) {
   netio_desc_t *nio = data;
 
   if (nio) {
+    if ((nio->type == NETIO_TYPE_UDP || nio->type == NETIO_TYPE_UDP_AUTO) &&
+        netio_udp_rxl_remove(nio, 1) < 0)
+      return FALSE;
     netio_filter_unbind(nio, NETIO_FILTER_DIR_RX);
     netio_filter_unbind(nio, NETIO_FILTER_DIR_TX);
     netio_filter_unbind(nio, NETIO_FILTER_DIR_BOTH);
@@ -1571,6 +1580,7 @@ void *netio_rxl_gen_thread(void *arg) {
     pthread_cond_broadcast(&netio_rxl_cond);
     NETIO_RXQ_UNLOCK();
 
+    NETIO_RXL_LOCK();
     /* Build the FD set */
     FD_ZERO(&rfds);
     fd_max = -1;
@@ -1621,6 +1631,8 @@ void *netio_rxl_gen_thread(void *arg) {
 /* Add a RX listener in the listener list */
 int netio_rxl_add(netio_desc_t *nio, netio_rx_handler_t rx_handler, void *arg1,
                   void *arg2) {
+  if (nio->type == NETIO_TYPE_UDP || nio->type == NETIO_TYPE_UDP_AUTO)
+    return netio_udp_rxl_add(nio, rx_handler, arg1, arg2);
   struct netio_rx_listener *rxl;
 
   NETIO_RXQ_LOCK();
@@ -1658,6 +1670,8 @@ int netio_rxl_add(netio_desc_t *nio, netio_rx_handler_t rx_handler, void *arg1,
 
 /* Remove a NIO from the listener list */
 int netio_rxl_remove(netio_desc_t *nio) {
+  if (nio->type == NETIO_TYPE_UDP || nio->type == NETIO_TYPE_UDP_AUTO)
+    return netio_udp_rxl_remove(nio, 0);
   NETIO_RXQ_LOCK();
   nio->rxl_next = netio_rxl_remove_list;
   netio_rxl_remove_list = nio;
@@ -1672,11 +1686,14 @@ int netio_rxl_remove(netio_desc_t *nio) {
 int netio_rxl_init(void) {
   if (netio_rxl_started)
     return (0);
+  if (netio_udp_rxl_init() < 0)
+    return -1;
   pthread_cond_init(&netio_rxl_cond, NULL);
   netio_rxl_running = 1;
 
   if (pthread_create(&netio_rxl_thread, NULL, netio_rxl_gen_thread, NULL)) {
     netio_rxl_running = 0;
+    netio_udp_rxl_shutdown();
     pthread_cond_destroy(&netio_rxl_cond);
     perror("netio_rxl_init: pthread_create");
     return (-1);
@@ -1696,4 +1713,5 @@ void netio_rxl_shutdown(void) {
   pthread_join(netio_rxl_thread, NULL);
   pthread_cond_destroy(&netio_rxl_cond);
   netio_rxl_started = 0;
+  netio_udp_rxl_shutdown();
 }

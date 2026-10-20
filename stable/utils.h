@@ -146,13 +146,13 @@ struct hreg_map {
 extern FILE *log_file;
 
 /* Check status of a bit */
-static inline int check_bit(u_int old, u_int new, u_int bit) {
+static inline int check_bit(u_int old, u_int new_value, u_int bit) {
   int mask = 1 << bit;
 
-  if ((old & mask) && !(new &mask))
+  if ((old & mask) && !(new_value &mask))
     return (1); /* bit unset */
 
-  if (!(old & mask) && (new &mask))
+  if (!(old & mask) && (new_value &mask))
     return (2); /* bit set */
 
   /* no change */

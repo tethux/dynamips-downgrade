@@ -321,10 +321,10 @@ int udp_connect(int local_port, char *remote_host, int remote_port) {
 
     if (!bind(sck, (struct sockaddr *)&st, res->ai_addrlen) &&
         !connect(sck, res->ai_addr, res->ai_addrlen)) {
-      perror("udp_connect: bind/connect");
       break;
     }
 
+    perror("udp_connect: bind/connect");
     close(sck);
     sck = -1;
   }
