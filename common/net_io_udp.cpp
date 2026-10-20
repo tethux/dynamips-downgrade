@@ -5,6 +5,7 @@
 #include <asio/io_context.hpp>
 #include <asio/ip/udp.hpp>
 #include <array>
+#include <algorithm>
 #include <cstdio>
 #include <fcntl.h>
 #include <limits>
@@ -131,7 +132,6 @@ fn receivers::stop() noexcept -> result {
 }
 fn receivers::arm(const std::shared_ptr<listener> &entry) noexcept -> result {
   return attempt([&]() -> result {
-    entry->buffer.fill(0);
     entry->socket.async_receive_from(
         asio::buffer(entry->buffer), entry->sender,
         [this, entry](const std::error_code &error, std::size_t size) noexcept {
@@ -140,12 +140,27 @@ fn receivers::arm(const std::shared_ptr<listener> &entry) noexcept -> result {
             if (!entry->active)
               return {};
             if (!error || error == asio::error::message_size) {
-              if (size &&
-                  netio_receive_dispatch(entry->endpoint, entry->buffer.data(),
-                                         static_cast<ssize_t>(size)) > 0)
-                entry->handler(entry->endpoint, entry->buffer.data(),
-                               static_cast<ssize_t>(size), entry->arg1,
-                               entry->arg2);
+              for (unsigned int burst = 0; burst < 16; ++burst) {
+                if (size) {
+                  std::fill(entry->buffer.begin() +
+                                static_cast<std::ptrdiff_t>(size),
+                            entry->buffer.end(), 0);
+                  if (netio_receive_dispatch(entry->endpoint,
+                                             entry->buffer.data(),
+                                             static_cast<ssize_t>(size)) > 0)
+                    entry->handler(entry->endpoint, entry->buffer.data(),
+                                   static_cast<ssize_t>(size), entry->arg1,
+                                   entry->arg2);
+                }
+                if (!entry->active || burst == 15)
+                  break;
+                const let received = recvfrom(
+                    entry->socket.native_handle(), entry->buffer.data(),
+                    entry->buffer.size(), MSG_DONTWAIT, nullptr, nullptr);
+                if (received < 0)
+                  break;
+                size = static_cast<std::size_t>(received);
+              }
             }
             if (entry->active)
               return arm(entry);
