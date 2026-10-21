@@ -1,5 +1,5 @@
 [tools]
-"github:xmake-io/xmake" = "latest"
+"github:xmake-io/xmake" = { version = "latest", bin = "xmake" }
 clang-format = "latest"
 "conda:cppcheck" = "2.20.1"
 go = "1.26.5"
