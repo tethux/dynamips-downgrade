@@ -36,6 +36,9 @@
 #include "device.h"
 #include "memory.h"
 #include "dev_vtty.h"
+#ifdef DYNAMIPS_ASIO_VTTY
+#include "vtty_io.h"
+#endif
 
 #ifdef USE_UNSTABLE
 #include "tcb.h"
@@ -50,6 +53,7 @@ static pthread_mutex_t vtty_list_mutex = PTHREAD_MUTEX_INITIALIZER;
 static vtty_t *vtty_list = NULL;
 static pthread_t vtty_thread;
 static int vtty_thread_running = 0;
+static int vtty_thread_started = 0;
 
 #define VTTY_LIST_LOCK() pthread_mutex_lock(&vtty_list_mutex);
 #define VTTY_LIST_UNLOCK() pthread_mutex_unlock(&vtty_list_mutex);
@@ -64,28 +68,44 @@ void vtty_set_ctrlhandler(int n) { ctrl_code_ok = n; }
 /* Allow the user to disable the telnet message for AUX and CONSOLE */
 void vtty_set_telnetmsg(int n) { telnet_message_ok = n; }
 
+static ssize_t vtty_send(int fd, const void *buffer, size_t size, int flags) {
+#ifdef DYNAMIPS_ASIO_VTTY
+  return vtty_io_write_fd(fd, buffer, size);
+#else
+  return send(fd, buffer, size, flags);
+#endif
+}
+static ssize_t vtty_printf(int fd, int flags, const char *fmt, ...) {
+  char buffer[2048];
+  va_list args;
+  va_start(args, fmt);
+  int size = vsnprintf(buffer, sizeof(buffer), fmt, args);
+  va_end(args);
+  return size < 0 ? -1 : vtty_send(fd, buffer, strlen(buffer), flags);
+}
+
 /* Send Telnet command: WILL TELOPT_ECHO */
 static void vtty_telnet_will_echo(int fd) {
   u_char cmd[] = {IAC, WILL, TELOPT_ECHO};
-  write(fd, cmd, sizeof(cmd));
+  vtty_send(fd, cmd, sizeof(cmd), 0);
 }
 
 /* Send Telnet command: Suppress Go-Ahead */
 static void vtty_telnet_will_suppress_go_ahead(int fd) {
   u_char cmd[] = {IAC, WILL, TELOPT_SGA};
-  write(fd, cmd, sizeof(cmd));
+  vtty_send(fd, cmd, sizeof(cmd), 0);
 }
 
 /* Send Telnet command: Don't use linemode */
 static void vtty_telnet_dont_linemode(int fd) {
   u_char cmd[] = {IAC, DONT, TELOPT_LINEMODE};
-  write(fd, cmd, sizeof(cmd));
+  vtty_send(fd, cmd, sizeof(cmd), 0);
 }
 
 /* Send Telnet command: does the client support terminal type message? */
 static void vtty_telnet_do_ttype(int fd) {
   u_char cmd[] = {IAC, DO, TELOPT_TTYPE};
-  write(fd, cmd, sizeof(cmd));
+  vtty_send(fd, cmd, sizeof(cmd), 0);
 }
 
 /* Restore TTY original settings */
@@ -249,28 +269,11 @@ error:
 }
 #endif
 
-/* Accept a TCP connection */
-static int vtty_tcp_conn_accept(vtty_t *vtty, int nsock) {
-  int fd, *fd_slot;
+static int vtty_tcp_connected(vtty_t *vtty, int listener_fd, int fd) {
   size_t i;
   ssize_t n;
-
-  if (fd_pool_get_free_slot(&vtty->fd_pool, &fd_slot) < 0) {
-    vm_error(vtty->vm, "unable to create a new VTTY TCP connection\n");
-    return (-1);
-  }
-
-  if ((fd = accept(vtty->fd_array[nsock], NULL, NULL)) < 0) {
-    vm_error(vtty->vm, "vtty_tcp_conn_accept: accept on port %d failed %s\n",
-             vtty->tcp_port, strerror(errno));
-    return (-1);
-  }
-
-  /* Register the new FD */
-  *fd_slot = fd;
-
   vm_log(vtty->vm, "VTTY", "%s is now connected (accept_fd=%d,conn_fd=%d)\n",
-         vtty->name, vtty->fd_array[nsock], fd);
+         vtty->name, listener_fd, fd);
 
   /* Adapt Telnet settings */
   if (vtty->terminal_support) {
@@ -282,7 +285,7 @@ static int vtty_tcp_conn_accept(vtty_t *vtty, int nsock) {
   }
 
   if (telnet_message_ok == 1) {
-    fd_printf(fd, 0,
+    vtty_printf(fd, 0,
               "Connected to Dynamips VM \"%s\" (ID %u, type %s) - %s\r\n"
               "Press ENTER to get the prompt.\r\n",
               vtty->vm->name, vtty->vm->instance_id, vm_get_type(vtty->vm),
@@ -290,7 +293,7 @@ static int vtty_tcp_conn_accept(vtty_t *vtty, int nsock) {
     /* replay old text */
     if (vtty->replay_full) {
       for (i = vtty->replay_ptr; i < VTTY_BUFFER_SIZE; i += (size_t)n) {
-        n = send(fd, &vtty->replay_buffer[i], VTTY_BUFFER_SIZE - i, 0);
+        n = vtty_send(fd, &vtty->replay_buffer[i], VTTY_BUFFER_SIZE - i, 0);
         if (n < 0) {
           perror("vtty_tcp_conn_accept: send");
           break;
@@ -298,7 +301,7 @@ static int vtty_tcp_conn_accept(vtty_t *vtty, int nsock) {
       }
     }
     for (i = 0; i < vtty->replay_ptr; i += (size_t)n) {
-      n = send(fd, &vtty->replay_buffer[i], vtty->replay_ptr - i, 0);
+      n = vtty_send(fd, &vtty->replay_buffer[i], vtty->replay_ptr - i, 0);
       if (n < 0) {
         perror("vtty_tcp_conn_accept: send");
         break;
@@ -306,7 +309,7 @@ static int vtty_tcp_conn_accept(vtty_t *vtty, int nsock) {
     }
     /* warn if not running */
     if (vtty->vm->status != VM_STATUS_RUNNING)
-      fd_printf(fd, 0,
+      vtty_printf(fd, 0,
                 "\r\n!!! WARNING - VM is not running, will be unresponsive "
                 "(status=%d) !!!\r\n",
                 vtty->vm->status);
@@ -314,6 +317,18 @@ static int vtty_tcp_conn_accept(vtty_t *vtty, int nsock) {
   }
   return (0);
 }
+
+#ifndef DYNAMIPS_ASIO_VTTY
+static int vtty_tcp_conn_accept(vtty_t *vtty, int nsock) {
+  int fd, *slot;
+  if (fd_pool_get_free_slot(&vtty->fd_pool, &slot) < 0)
+    return -1;
+  if ((fd = accept(vtty->fd_array[nsock], NULL, NULL)) < 0)
+    return -1;
+  *slot = fd;
+  return vtty_tcp_connected(vtty, vtty->fd_array[nsock], fd);
+}
+#endif
 
 /*
  * Parse serial interface descriptor string, return 0 if success
@@ -608,6 +623,15 @@ vtty_t *vtty_create(vm_instance_t *vm, char *name, int type, int tcp_port,
     return NULL;
   }
 
+#ifdef DYNAMIPS_ASIO_VTTY
+  size_t count = vtty->type == VTTY_TYPE_TCP ? (size_t)(vtty->fd_count > 0 ? vtty->fd_count : 0) :
+                 vtty->type == VTTY_TYPE_NONE ? 0 : 1;
+  if (vtty_io_attach(vtty, vtty->type, vtty->fd_array, count) < 0) {
+    vtty_delete(vtty);
+    return NULL;
+  }
+#endif
+
   /* Add this new VTTY to the list */
   VTTY_LIST_LOCK();
   vtty->next = vtty_list;
@@ -627,6 +651,12 @@ void vtty_delete(vtty_t *vtty) {
 
   if (vtty != NULL) {
     VTTY_LIST_LOCK();
+#ifdef DYNAMIPS_ASIO_VTTY
+    if (vtty_io_detach(vtty) < 0)
+      vm_log(vtty->vm, "VTTY", "%s: output did not drain before close\n", vtty->name);
+    vtty->read_notifier = NULL;
+    vtty->input_pending = FALSE;
+#endif
     if (vtty->pprev != NULL) {
       if (vtty->next)
         vtty->next->pprev = vtty->pprev;
@@ -657,6 +687,7 @@ void vtty_delete(vtty_t *vtty) {
         close(vtty->fd_array[0]);
       }
     }
+    pthread_mutex_destroy(&vtty->lock);
     free(vtty);
   }
 }
@@ -704,6 +735,7 @@ int vtty_store_ctrlc(vtty_t *vtty) {
   return (0);
 }
 
+#ifndef DYNAMIPS_ASIO_VTTY
 /*
  * Read a character from the terminal.
  */
@@ -756,6 +788,8 @@ static int vtty_read(vtty_t *vtty, int *fd_slot) {
   /* NOTREACHED */
   return (-1);
 }
+
+#endif
 
 /* Remote control for MIPS64 processors */
 static int remote_control_mips64(vtty_t *vtty, char c, cpu_mips_t *cpu) {
@@ -956,13 +990,7 @@ static void remote_control(vtty_t *vtty, u_char c) {
   }
 }
 
-/* Read a character (until one is available) and store it in buffer */
-static void vtty_read_and_store(vtty_t *vtty, int *fd_slot) {
-  int c;
-
-  /* wait until we get a character input */
-  c = vtty_read(vtty, fd_slot);
-
+static void vtty_process_input(vtty_t *vtty, int *fd_slot, int c) {
   /* if read error, do nothing */
   if (c < 0)
     return;
@@ -1096,7 +1124,7 @@ static void vtty_read_and_store(vtty_t *vtty, int *fd_slot) {
     /* parse ttype string: first char is sufficient */
     /* if client is xterm or vt, set the title bar */
     if ((c == 'x') || (c == 'X') || (c == 'v') || (c == 'V')) {
-      fd_printf(*fd_slot, 0, "\033]0;%s\07", vtty->vm->name);
+      vtty_printf(*fd_slot, 0, "\033]0;%s\07", vtty->vm->name);
     }
     vtty->input_state = VTTY_INPUT_TELNET_NEXT;
     return;
@@ -1108,6 +1136,12 @@ static void vtty_read_and_store(vtty_t *vtty, int *fd_slot) {
     return;
   }
 }
+
+#ifndef DYNAMIPS_ASIO_VTTY
+static void vtty_read_and_store(vtty_t *vtty, int *fd_slot) {
+  vtty_process_input(vtty, fd_slot, vtty_read(vtty, fd_slot));
+}
+#endif
 
 /* Read a character from the buffer (-1 if the buffer is empty) */
 int vtty_get_char(vtty_t *vtty) {
@@ -1139,6 +1173,32 @@ int vtty_is_char_avail(vtty_t *vtty) {
   return (res);
 }
 
+#ifdef DYNAMIPS_ASIO_VTTY
+static void vtty_record_output(vtty_t *vtty, const unsigned char *data, size_t len) {
+  for (size_t i = 0; i < len; ++i) {
+    vtty->replay_buffer[vtty->replay_ptr++] = data[i];
+    if (vtty->replay_ptr == VTTY_BUFFER_SIZE) {
+      vtty->replay_ptr = 0;
+      vtty->replay_full = 1;
+    }
+  }
+}
+void vtty_put_char(vtty_t *vtty, unsigned char ch) {
+  VTTY_LOCK(vtty);
+  if (vtty_io_write(vtty, &ch, 1) < 0)
+    vm_log(vtty->vm, "VTTY", "%s: output transport unavailable\n", vtty->name);
+  vtty_record_output(vtty, &ch, 1);
+  VTTY_UNLOCK(vtty);
+}
+void vtty_put_buffer(vtty_t *vtty, char *buffer, size_t len) {
+  VTTY_LOCK(vtty);
+  if (vtty_io_write(vtty, buffer, len) < 0)
+    vm_log(vtty->vm, "VTTY", "%s: output transport unavailable\n", vtty->name);
+  vtty_record_output(vtty, (const unsigned char *)buffer, len);
+  VTTY_UNLOCK(vtty);
+  vtty_flush(vtty);
+}
+#else
 /* Put char to vtty */
 void vtty_put_char(vtty_t *vtty, unsigned char ch) {
   switch (vtty->type) {
@@ -1182,6 +1242,8 @@ void vtty_put_buffer(vtty_t *vtty, char *buf, size_t len) {
   vtty_flush(vtty);
 }
 
+#endif
+
 /* Flush VTTY output */
 void vtty_flush(vtty_t *vtty) {
   switch (vtty->type) {
@@ -1193,6 +1255,51 @@ void vtty_flush(vtty_t *vtty) {
   }
 }
 
+#ifdef DYNAMIPS_ASIO_VTTY
+static void *vtty_thread_main(void *arg) {
+  struct vtty_io_event event;
+  for (;;) {
+    int status = vtty_io_take(&event);
+    VTTY_LIST_LOCK();
+    if (!vtty_thread_running) {
+      VTTY_LIST_UNLOCK();
+      if (status == 1)
+        vtty_io_complete(&event);
+      break;
+    }
+    if (status == 1 && vtty_io_active(&event)) {
+      vtty_t *vtty;
+      for (vtty = vtty_list; vtty && vtty != event.owner; vtty = vtty->next) {}
+      if (vtty) {
+        if (event.connected) {
+          VTTY_LOCK(vtty);
+          vtty_tcp_connected(vtty, vtty->fd_array[0], event.fd);
+          vtty_io_complete(&event);
+          VTTY_UNLOCK(vtty);
+        } else {
+          for (size_t i = 0; i < event.size; ++i) {
+            vtty_process_input(vtty, &event.fd, event.data[i]);
+            if (vtty->input_pending) {
+              if (vtty->read_notifier)
+                vtty->read_notifier(vtty);
+              vtty->input_pending = FALSE;
+            }
+          }
+        }
+      }
+    }
+    if (status == 1 && event.handle)
+      vtty_io_complete(&event);
+    for (vtty_t *vtty = vtty_list; vtty; vtty = vtty->next)
+      if (!vtty->managed_flush)
+        vtty_flush(vtty);
+    VTTY_LIST_UNLOCK();
+    if (status < 0)
+      break;
+  }
+  return NULL;
+}
+#else
 /* VTTY TCP input */
 static void vtty_tcp_input(int *fd_slot, void *opt) {
   vtty_read_and_store((vtty_t *)opt, fd_slot);
@@ -1301,8 +1408,20 @@ static void *vtty_thread_main(void *arg) {
   return NULL;
 }
 
+#endif
+
 /* Initialize the VTTY thread */
 int vtty_init(void) {
+  VTTY_LIST_LOCK();
+  if (vtty_thread_started) {
+    VTTY_LIST_UNLOCK();
+    return 0;
+  }
+  VTTY_LIST_UNLOCK();
+#ifdef DYNAMIPS_ASIO_VTTY
+  if (vtty_io_start() < 0)
+    return -1;
+#endif
   VTTY_LIST_LOCK();
   vtty_thread_running = 1;
   VTTY_LIST_UNLOCK();
@@ -1310,16 +1429,51 @@ int vtty_init(void) {
     VTTY_LIST_LOCK();
     vtty_thread_running = 0;
     VTTY_LIST_UNLOCK();
+#ifdef DYNAMIPS_ASIO_VTTY
+    vtty_io_stop();
+    vtty_io_drain();
+#endif
     perror("vtty: pthread_create");
     return (-1);
   }
 
+  VTTY_LIST_LOCK();
+  vtty_thread_started = 1;
+  VTTY_LIST_UNLOCK();
   return (0);
 }
 
 void vtty_shutdown(void) {
   VTTY_LIST_LOCK();
+  if (!vtty_thread_started) {
+    VTTY_LIST_UNLOCK();
+    return;
+  }
   vtty_thread_running = 0;
   VTTY_LIST_UNLOCK();
-  pthread_join(vtty_thread, NULL);
+#ifdef DYNAMIPS_ASIO_VTTY
+  vtty_io_stop();
+#endif
+  int joined = pthread_join(vtty_thread, NULL);
+  if (joined != 0)
+    fprintf(stderr, "vtty shutdown: pthread_join: %s\n", strerror(joined));
+#ifdef DYNAMIPS_ASIO_VTTY
+  vtty_io_drain();
+#endif
+  VTTY_LIST_LOCK();
+  vtty_thread_started = 0;
+  VTTY_LIST_UNLOCK();
+}
+
+void vtty_quiesce(vtty_t *vtty) {
+  if (!vtty)
+    return;
+  VTTY_LIST_LOCK();
+#ifdef DYNAMIPS_ASIO_VTTY
+  if (vtty_io_detach(vtty) < 0)
+    vm_log(vtty->vm, "VTTY", "%s: output did not drain before shutdown\n", vtty->name);
+#endif
+  vtty->read_notifier = NULL;
+  vtty->input_pending = FALSE;
+  VTTY_LIST_UNLOCK();
 }

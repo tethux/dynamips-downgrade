@@ -404,6 +404,9 @@ int vm_hardware_shutdown(vm_instance_t *vm) {
 
   vm_log(vm, "VM", "shutdown procedure engaged.\n");
 
+  vtty_quiesce(vm->vtty_con);
+  vtty_quiesce(vm->vtty_aux);
+
   /* Mark the VM as halted */
   vm->status = VM_STATUS_HALTED;
 

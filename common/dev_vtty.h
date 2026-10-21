@@ -98,6 +98,8 @@ struct virtual_tty {
 vtty_t *vtty_create(vm_instance_t *vm, char *name, int type, int tcp_port,
                     const vtty_serial_option_t *option);
 
+void vtty_quiesce(vtty_t *vtty);
+
 /* delete a virtual tty */
 void vtty_delete(vtty_t *vtty);
 
