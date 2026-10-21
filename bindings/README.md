@@ -24,7 +24,7 @@ The public boundary has four layers:
    strings, serializes access to legacy global state, and exposes explicit
    `Close` methods with Tethux-style categorized operation errors.
 
-The legacy registry owns VM, NIO, and Ethernet switch objects. A public handle owns one registry
+The native registry owns VM, NIO, and Ethernet switch objects. A public handle owns one registry
 reference and releases it when destroyed. All handles must be destroyed before
 the process-global runtime. Calls are externally serialized until the legacy
 global state can be isolated.

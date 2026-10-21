@@ -1,0 +1,36 @@
+version: 2
+project_name: dynamips-downgrade
+
+before:
+  hooks:
+    - mise run package:native
+    - env PKG_CONFIG_PATH={{ .Env.PWD }}/build/release/lib/pkgconfig go test -a -count=1 ./...
+
+builds:
+  - skip: true
+
+archives:
+  - meta: true
+    formats: [tar.gz]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_linux_amd64"
+    files:
+      - README.md
+      - LICENSE
+      - src: build/release/lib/*.a
+        dst: lib
+        strip_parent: true
+      - src: include/dynamips/*.h
+        dst: include/dynamips
+        strip_parent: true
+      - src: build/release/lib/pkgconfig/dynamips-bindings.pc
+        dst: lib/pkgconfig
+        strip_parent: true
+
+checksum:
+  name_template: checksums.txt
+
+changelog:
+  sort: asc
+
+release:
+  prerelease: auto

@@ -1,16 +1,18 @@
 # Standalone Go consumer
 
-This directory has its own Go module. It imports the published
-`github.com/tethux/dynamips-downgrade` package, initializes Dynamips, and
-closes it.
-
-On Linux amd64, install a C++ compiler and the libelf, libpcap, and libnsl
-development libraries. Then run:
+This separate module imports the published Dynamips package without a local
+replacement. Install the matching native release and set `PKG_CONFIG_PATH`
+as described in the [root README](../../README.md#go-consumers), then run:
 
 ```sh
 cd examples/consumer
+go mod tidy
 CGO_ENABLED=1 go run .
 ```
 
-The example's `go.mod` pins `v0.2.27`. In your own module, add it with
-`go get github.com/tethux/dynamips-downgrade@v0.2.27`.
+The example pins `v0.2.28`. Its native libraries come from release assets,
+not the Go module. For another consumer:
+
+```sh
+go get github.com/tethux/dynamips-downgrade@v0.2.28
+```

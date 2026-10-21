@@ -5,3 +5,10 @@
 /.xmake/
 /compile_commands.json
 /*_log.txt
+
+/dist/
+*.a
+*.o
+*.so
+*.dylib
+*.exe

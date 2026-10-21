@@ -24,8 +24,8 @@ their own notices.
 
 ## Build and test
 
-The project uses xmake with Clang, C23, and C++23. Install libelf and libpcap
-development files to build the native code. Then run:
+The project uses xmake with Clang 19 or newer, C23, C++23, and libstdc++ 14
+or newer. Install libelf and libpcap development files to build the native code. Then run:
 
 ```sh
 mise run build
@@ -34,7 +34,7 @@ mise run lint:go
 mise run lint:cpp
 ```
 
-`mise run test` runs the Go tests against the checked-in release archives.
+`mise run test` builds the native libraries and runs the Go tests against them.
 `mise run test:native` builds and tests the C++ module. `mise run lint:cpp` runs cppcheck on the new C/C++ embedding boundary
 and clang-tidy on `bindings/*.cpp`. It requires `clang-tidy`; mise provides
 cppcheck. The C++23 module partitions are checked by the Clang build because
@@ -45,23 +45,37 @@ formatting.
 
 ## Go consumers
 
-On Linux amd64, the Go module includes the release archives and public headers.
-In your own Go module, add the published version with:
+Native binaries are distributed as Linux amd64 GitHub release assets, not in
+the Go module. Install a C/C++ compiler, pkg-config, and libelf, libpcap and
+libnsl development libraries. Download the matching native release:
 
 ```sh
-go get github.com/tethux/dynamips-downgrade@v0.2.27
+version=0.2.28
+curl -fLO "https://github.com/tethux/dynamips-downgrade/releases/download/v${version}/dynamips-downgrade_${version}_linux_amd64.tar.gz"
+curl -fLO "https://github.com/tethux/dynamips-downgrade/releases/download/v${version}/checksums.txt"
+sha256sum --ignore-missing -c checksums.txt
+mkdir -p "$HOME/.local/dynamips/$version"
+tar -xzf "dynamips-downgrade_${version}_linux_amd64.tar.gz" -C "$HOME/.local/dynamips/$version"
+export PKG_CONFIG_PATH="$HOME/.local/dynamips/$version/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
+go get github.com/tethux/dynamips-downgrade@v0.2.28
 ```
 
-Import `github.com/tethux/dynamips-downgrade` in your Go code. The
-[standalone consumer example](examples/consumer/) has its own `go.mod` and
-fetches the published module rather than using this checkout. Build with
-`CGO_ENABLED=1`. Nix and Xmake are not needed by consumers. The final link
-still needs a C++ linker and the libelf, libpcap, and libnsl development
-libraries from your system. The Dynamips code is linked from static archives;
-the final executable may still use shared system libraries.
+Keep `PKG_CONFIG_PATH` set when building with `CGO_ENABLED=1`. Go downloads
+source only; it does not install native dependencies. Consumers do not need
+Xmake or a sibling checkout. The native static archives link against the
+system C++ runtime, libelf, libpcap and libnsl, so the final executable may
+still use shared system libraries. Match the Go and native release versions.
 
-`mise run package:go` rebuilds the checked-in archives from the current
-source before a Go module release.
+The [standalone consumer example](examples/consumer/) fetches the published
+module without a local replacement. Other native platforms require a source
+build with Xmake.
+
+`mise run package:native` stages release libraries, headers and pkg-config
+metadata in `build/release`. `mise run release:check` validates GoReleaser;
+`mise run release:snapshot` builds and tests the native package without
+publishing. Pushing a new `v*` tag publishes the archive and checksums through
+GoReleaser, following the same release workflow as Shitnet. Generated native
+binaries and release output are ignored by Git.
 
 ## Native install
 
@@ -77,14 +91,15 @@ PKG_CONFIG_PATH=/path/to/prefix/lib/pkgconfig pkg-config --cflags --libs dynamip
 ```
 
 Set `PKG_CONFIG_PATH` to that directory for native consumers using the
-installed archives. The Go module uses its own checked-in archives.
+installed archives. Go consumers use the same pkg-config package.
 
 ## Go API
 
 The Go package initializes Dynamips without CLI options or a TCP hypervisor.
 It exposes VM lifecycle and configuration, cards, NIO, and C7200 settings.
-The embedded runtime is process wide and can be initialized only once. Close
-VM, NIO, and switch handles before closing it.
+The embedded runtime is process wide. Delete native objects when finished;
+`Close` only releases a handle reference. Release all handles before closing
+the runtime.
 
 `VMConfig.StateDirectory` selects an existing absolute directory for that VM's
 NVRAM, flash, ROMMON variables, and other generated files. Lease a separate
@@ -117,10 +132,9 @@ commands there, then press Ctrl+] and enter `quit` when finished.
 
 ## IOS integration and current performance
 
-[`ios_boot_test.go`](ios_boot_test.go) boots a C7200 image through both the
-embedded Go API and the old TCP hypervisor. It runs `terminal length 0`,
-`show version`, `show ip interface brief`, `configure terminal`,
-`hostname paritytest`, and `end` on each IOS console. The test is opt in because
+[`ios_boot_test.go`](internal/binding/ios_boot_test.go) boots a C7200 image
+through both the embedded Go API and the old TCP hypervisor. It verifies IOS
+commands, interface output, a hostname change and the resulting running config.
 Cisco images are not distributed here:
 
 ```sh
@@ -128,39 +142,30 @@ DYNAMIPS_IOS_ARCHIVE=/path/to/c7200-ios.zip DYNAMIPS_IOS_RAM_MB=256 \
   mise run test:ios
 ```
 
-The task selects the amd64 JIT and tests the freshly built native libraries
-through the `dynamips_local` Go build tag and the installed pkg-config file.
-It forces a Go rebuild because Go's cache does not track external native
-archive changes. Both IOS boots run sequentially, with progress logged before
-each boot. Ordinary Go builds still use the checked-in release archives.
+The task tests freshly built amd64 native libraries through pkg-config, with
+Go's build cache bypassed. It runs three sequential paired trials, alternating
+API order. Set `DYNAMIPS_IOS_TRIALS=1..5` to change the count and
+`DYNAMIPS_IOS_DETAILS=1` for ranges and all measurements. Each embedded VM has
+fresh state and is stopped and deleted between trials.
 
-Six local C7200 archives passed on both paths on 2026-09-23. `IOS ready` is
-wall time from VM setup to a usable privileged prompt. CPU is user plus
-system time through the command checks. RSS is total process resident memory
-at that point, with peak sampled every 100 ms. Images ran sequentially, one
-run each. The embedded process includes the Go test harness and an already
-initialized runtime; the legacy figure is a separate executable whose startup
-includes launching the hypervisor. These are observations, not an isolated
-ABI benchmark.
+The compact report shows median startup, IOS-ready and CLI times, CPU usage,
+process RSS and Go memory. Go measurements include heap objects, runtime backing,
+allocations and GC pauses; the detailed report also includes stacks, reserved
+memory, allocation counts and goroutines. Go includes the test/console client.
+Runtime backing (`Sys - HeapReleased`) is an estimate, not measured RSS. Total
+RSS includes native emulator allocations and mappings. It cannot be split into
+native and Go resident memory by subtracting Go runtime statistics.
 
-| C7200 image | RAM | IOS ready, embedded / legacy | CPU, embedded / legacy | RSS, embedded / legacy |
-| --- | ---: | ---: | ---: | ---: |
-| 12.4(25g) a3jk9s `.bin` | 512 MiB | 11.58 / 11.91 s | 11.47 / 11.70 s | 214.3 / 206.2 MiB |
-| 12.4(24)T5 adventerprisek9 `.bin` | 256 MiB | 19.28 / 19.47 s | 19.18 / 19.30 s | 224.1 / 216.2 MiB |
-| 12.4(24)T5 adventerprisek9 `.image` | 256 MiB | 11.14 / 11.73 s | 11.04 / 11.58 s | 224.9 / 216.2 MiB |
-| 15.2(4)M7 adventerprisek9 `.bin` | 256 MiB | 23.69 / 25.37 s | 23.64 / 25.24 s | 270.5 / 262.1 MiB |
-| 15.2(4)S6 adventerprisek9 `.image` | 256 MiB | 9.74 / 9.64 s | 9.59 / 9.45 s | 244.2 / 235.8 MiB |
-| 15.3(3)XB12 adventerprisek9 `.image` | 256 MiB | 13.94 / 13.76 s | 13.85 / 13.62 s | 269.2 / 258.6 MiB |
+Three pairs using the local 12.4(24)T5 archive passed on 2026-10-21. Median Go
+heap objects were 2.38 MiB after CLI checks, runtime backing was 10.78 MiB and
+total embedded RSS was 236.68 MiB. These are local observations: repeated
+embedded runs share allocator caches, RSS peaks are sampled every 100 ms, and
+legacy startup includes process launch. Both APIs use the same native core.
 
-The embedded Go test process used about 8 to 11 MiB more total RSS in those
-runs. Boot and CPU times were close. Repeat under controlled load before
-interpreting their small differences as a speedup or slowdown.
-
-An isolated ASan build also booted the 12.4(24)T5 image and completed the IOS
-commands. Valgrind found 0 bytes left at exit and no file descriptor growth
-after 300 VM create/delete and 300 UDP NIO create/delete cycles. Full UBSan
-runs are currently blocked by existing amd64 JIT operations that trigger
-function pointer, shift, and null member checks.
+Real UDP Ethernet/IOS ARP and ICMP traffic, console reconnects and active
+shutdown were also verified during the Asio migrations. Focused native tests
+passed ASan/UBSan and relevant TSan checks. Full emulator UBSan remains limited
+by existing JIT operations; a boot alone does not prove networking or teardown.
 
 ## Roadmap
 
@@ -171,15 +176,14 @@ next steps are:
 1. Retire the hypervisor after the required API and IOS parity checks cover
    the workflows Tethux uses. Drop unused host JIT targets as the supported
    host and guest platforms become explicit.
-2. Replace the hand-written socket polling, console handling, timers, and
-   periodic task plumbing with [Asio](https://think-async.com/Asio/). Keep CPU
-   execution separate from the I/O event loop. Audit the `rt` linker dependency
-   and remove it if nothing needs it.
-3. Replace generic C utilities such as `rbtree` with suitable C++ standard
-   containers. Consolidate CRC code; use a library such as zlib through xrepo
-   for compatible algorithms, while retaining the small algorithms it does
-   not provide. Prefer xrepo packages to maintaining commodity code when the
-   dependency actually makes the project smaller.
+2. Extend Asio only where remaining backends need it. UDP NIO reception and
+   native console transport already use asynchronous Asio I/O; console device
+   notifications remain on the native console thread. Timers and periodic tasks
+   already have C++ implementations. Keep CPU execution separate from I/O.
+3. Continue bounded utility migrations where a real consumer benefits. Registry,
+   ROMMON, host file/alignment helpers and pure packet/address/checksum helpers
+   already expose C++ mechanisms with compatible C boundaries. Retained C code
+   and constant tables are not migration targets just to reduce file counts.
 4. Make Cisco chassis, slots, cards, IRQ routing, and common FPGA register
    layouts mostly data-driven. Share PCI, MMIO, memory-map, and device
    lifecycle infrastructure, but keep genuinely different chip behavior in

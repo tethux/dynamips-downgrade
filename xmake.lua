@@ -1,4 +1,4 @@
-local version = "0.2.27"
+local version = "0.2.28"
 
 set_project("dynamips")
 set_version(version)

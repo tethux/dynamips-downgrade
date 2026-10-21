@@ -16,9 +16,15 @@ jobs:
       - name: Install binding link dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libelf-dev libpcap-dev libnsl-dev
+          sudo apt-get install -y clang-19 g++-14 libelf-dev libpcap-dev libnsl-dev pkg-config
+      - name: Select Clang 19
+        run: |
+          mkdir -p "$RUNNER_TEMP/clang-bin"
+          ln -s /usr/bin/clang-19 "$RUNNER_TEMP/clang-bin/clang"
+          ln -s /usr/bin/clang++-19 "$RUNNER_TEMP/clang-bin/clang++"
+          echo "$RUNNER_TEMP/clang-bin" >> "$GITHUB_PATH"
       - uses: jdx/mise-action@v3
         with:
-          install_args: go golangci-lint
+          install_args: go golangci-lint github:xmake-io/xmake
       - run: mise run lint:go
       - run: mise run test:go

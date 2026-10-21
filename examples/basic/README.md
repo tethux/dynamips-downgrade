@@ -56,9 +56,9 @@ Switch to `/raw` before passwords or other interactive applications.
 Commands are kept in memory for this session only; enhanced input is visible
 and enters history.
 
-The flag and frontend live in the example, outside the Go VM bindings and
-native emulator. Telnet decoding stays at the connection boundary. Only one
-operator should write to this guest console at a time.
+The flag lives in the example; the reusable frontend is exported by the
+`console` Go package, outside the VM bindings and native emulator. Telnet
+decoding stays at the connection boundary. Only one operator should write to this guest console at a time.
 
 Shitnet uses `chzyer/readline`. This demo uses its `ergochat/readline` fork:
 the original library raced between asynchronous output and Ctrl+R search

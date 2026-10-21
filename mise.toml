@@ -3,6 +3,7 @@
 clang-format = "latest"
 "conda:cppcheck" = "2.20.1"
 go = "1.26.5"
+goreleaser = "2.18.3"
 golangci-lint = "2.10.1"
 "go:golang.org/x/tools/cmd/goimports" = "0.42.0"
 "go:mvdan.cc/gofumpt" = "0.9.2"
@@ -23,22 +24,31 @@ depends = ["test:go"]
 description = "build and install the native embedding libraries"
 run = "xmake f -m debug -y && xmake build -j \"${DYNAMIPS_BUILD_JOBS:-14}\" -y dynamips-bindings && xmake install -o \"$PWD/build/install\" dynamips-bindings dynamips-core"
 
-[tasks."package:go"]
-description = "rebuild the checked-in Linux amd64 archives"
+[tasks."package:native"]
+description = "stage the Linux amd64 native release"
 run = """
-test "$(uname -s)" = Linux && test "$(uname -m)" = x86_64 || { echo 'Go archives support Linux amd64 only' >&2; exit 2; }
+test "$(uname -s):$(uname -m)" = Linux:x86_64 || { echo 'Native releases support Linux amd64 only' >&2; exit 2; }
 xmake f -m release --dynamips_arch=amd64 --system_packages=y --enable_gen_eth=y -y
 xmake build -j "${DYNAMIPS_BUILD_JOBS:-14}" -y dynamips-bindings
-xmake install -o "$PWD/build/install" dynamips-core
-install -Dm644 build/linux/x86_64/release/libdynamips-bindings.a internal/binding/libdynamips-bindings_linux_amd64.a
-install -Dm644 build/linux/x86_64/release/libdynamips-core.a internal/binding/libdynamips-core_linux_amd64.a
-install -Dm644 build/install/lib/libz.a internal/binding/libz_linux_amd64.a
-install -m644 include/dynamips/*.h internal/binding/
+xmake install -o "$PWD/build/release" dynamips-bindings dynamips-core
 """
+
+[tasks."release:check"]
+description = "validate the release configuration"
+run = "goreleaser check"
+
+[tasks."release:snapshot"]
+description = "build and test native release archives without publishing"
+run = "goreleaser release --snapshot --clean"
+
+[tasks.release]
+description = "publish the current version tag"
+run = "goreleaser release --clean"
 
 [tasks."test:go"]
 description = "test the Go bindings"
-run = "go test ./..."
+depends = ["build:native"]
+run = 'PKG_CONFIG_PATH="$PWD/build/install/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}" go test -a -count=1 ./...'
 
 [tasks."test:ios"]
 description = "boot a local C7200 IOS archive through embedded and legacy APIs"
@@ -49,14 +59,15 @@ xmake -j "${DYNAMIPS_BUILD_JOBS:-14}" -y
 xmake install -o "$PWD/build/install" dynamips-bindings dynamips-core
 export PKG_CONFIG_PATH="$PWD/build/install/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
 # Go's cache does not track changes to external native archives.
-go test -a -tags=dynamips_local ./internal/binding -run '^TestC7200IOSBootParity$' -count=1 -v -timeout=8m
+go test -a ./internal/binding -run '^TestC7200IOSBootParity$' -count=1 -v -timeout=8m
 """
 
 [tasks."lint:go"]
 description = "lint the Go bindings"
+depends = ["build:native"]
 run = """
 go tool repolint .
-golangci-lint run ./...
+PKG_CONFIG_PATH="$PWD/build/install/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}" golangci-lint run ./...
 """
 
 [tasks."lint:cppcheck"]
@@ -79,9 +90,10 @@ run = "xmake build -j \"${DYNAMIPS_BUILD_JOBS:-14}\" -y dynamips-module-test && 
 
 [tasks."run:example"]
 description = "boot a C7200 image and open its IOS console"
+depends = ["build:native"]
 run = """
 test -n "${DYNAMIPS_IOS_IMAGE:-}" || { echo 'set DYNAMIPS_IOS_IMAGE to a local C7200 IOS image or zip archive' >&2; exit 2; }
-go run ./examples/basic -ios "$DYNAMIPS_IOS_IMAGE"
+PKG_CONFIG_PATH="$PWD/build/install/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}" go run ./examples/basic -ios "$DYNAMIPS_IOS_IMAGE"
 """
 
 [tasks.compiledb]
