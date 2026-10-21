@@ -11,17 +11,20 @@ permissions:
 jobs:
   lint:
     runs-on: blacksmith-4vcpu-ubuntu-2404
+    env:
+      DYNAMIPS_BUILD_JOBS: 4
     steps:
       - uses: actions/checkout@v4
       - name: Install binding link dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang-19 g++-14 libelf-dev libpcap-dev libnsl-dev pkg-config
+          sudo apt-get install -y clang-19 clang-tools-19 g++-14 libelf-dev libpcap-dev libnsl-dev pkg-config
       - name: Select Clang 19
         run: |
           mkdir -p "$RUNNER_TEMP/clang-bin"
           ln -s /usr/bin/clang-19 "$RUNNER_TEMP/clang-bin/clang"
           ln -s /usr/bin/clang++-19 "$RUNNER_TEMP/clang-bin/clang++"
+          ln -s /usr/bin/clang-scan-deps-19 "$RUNNER_TEMP/clang-bin/clang-scan-deps"
           echo "$RUNNER_TEMP/clang-bin" >> "$GITHUB_PATH"
       - uses: jdx/mise-action@v3
         with:
