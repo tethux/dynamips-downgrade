@@ -11,7 +11,9 @@ namespace dynamips::host {
 struct free_bytes {
   fn operator()(unsigned char *ptr) const noexcept -> void { std::free(ptr); }
 };
+
 using owned_bytes = std::unique_ptr<unsigned char, free_bytes>;
+
 struct file_buffer {
   owned_bytes bytes;
   std::size_t size;

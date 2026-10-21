@@ -4,6 +4,7 @@
 #include <sys/types.h>
 
 struct virtual_tty;
+
 struct vtty_io_event {
   struct virtual_tty *owner;
   int fd;
@@ -37,9 +38,10 @@ void vtty_io_complete(struct vtty_io_event *);
 namespace dynamips::console {
 enum class transport { none, terminal, tcp, serial };
 fn attach(virtual_tty &owner, transport type,
-          std::span<const int> descriptors) noexcept
+            std::span<const int> descriptors) noexcept
     -> std::expected<void, std::error_code>;
-fn detach(virtual_tty &owner) noexcept -> std::expected<void, std::error_code>;
+fn detach(virtual_tty &owner) noexcept
+    -> std::expected<void, std::error_code>;
 fn write(virtual_tty &owner, std::span<const unsigned char> bytes) noexcept
     -> std::expected<void, std::error_code>;
 } // namespace dynamips::console

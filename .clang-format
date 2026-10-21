@@ -1,2 +1,6 @@
 Standard: Latest
 SortIncludes: Never
+SeparateDefinitionBlocks: Always
+Macros:
+  - fn=auto
+  - let=auto

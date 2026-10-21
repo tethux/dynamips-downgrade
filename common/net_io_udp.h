@@ -25,7 +25,7 @@ ssize_t netio_receive_dispatch(struct netio_desc *, void *, ssize_t);
 
 namespace dynamips::nio {
 fn listen_udp(netio_desc &endpoint, netio_udp_handler handler, void *arg1,
-              void *arg2) noexcept -> std::expected<void, std::error_code>;
+                void *arg2) noexcept -> std::expected<void, std::error_code>;
 fn unlisten_udp(netio_desc &endpoint, bool all = false) noexcept
     -> std::expected<void, std::error_code>;
 } // namespace dynamips::nio

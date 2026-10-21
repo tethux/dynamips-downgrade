@@ -73,15 +73,27 @@ PKG_CONFIG_PATH="$PWD/build/install/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG
 [tasks."lint:cppcheck"]
 description = "check the C and C++ embedding boundary"
 run = """
-cppcheck --enable=warning,performance,portability --std=c++20 --language=c++ --error-exitcode=1 --quiet -I include -I common -I stable bindings/*.cpp
-cppcheck --enable=warning,performance,portability --std=c11 --language=c --error-exitcode=1 --quiet -I include -I common -I stable common/dynamips_bridge_*.c
+cppcheck --enable=warning,performance,portability --std=c++23 --language=c++ --error-exitcode=1 --quiet -I include -I common -I stable bindings/*.cpp
+cppcheck --enable=warning,performance,portability --std=c23 --language=c --error-exitcode=1 --quiet -I include -I common -I stable common/dynamips_bridge_*.c
 """
 
 [tasks."lint:cpp"]
 description = "lint the C++ bindings after generating compile commands"
-depends = ["build:native", "lint:cppcheck"]
+depends = ["compiledb", "lint:cppcheck"]
 # Identifier macros cannot parenthesize their names; paired string_view API args are intentional.
 run = "clang-tidy -p . -checks='clang-analyzer-*,bugprone-*,-bugprone-macro-parentheses,-bugprone-easily-swappable-parameters' -warnings-as-errors='clang-analyzer-*,bugprone-*' bindings/*.cpp --quiet"
+
+[tasks."lint:cpp:ports"]
+description = "check migrated helpers and I/O with strict compiler warnings"
+depends = ["compiledb"]
+run = """
+clang-tidy -p . -checks='-*,clang-analyzer-core.*,clang-analyzer-cplusplus.*,clang-analyzer-deadcode.*,clang-analyzer-unix.*,bugprone-use-after-move' -warnings-as-errors='*' \
+  --extra-arg=-fasm --extra-arg=-Wall --extra-arg=-Wextra \
+  --extra-arg=-Wpedantic --extra-arg=-Wshadow --extra-arg=-Wconversion \
+  --extra-arg=-Wsign-conversion --extra-arg=-Werror --quiet \
+  common/host_memory.cpp common/rommon_var.cpp common/net_packet.cpp \
+  common/net_io_udp.cpp common/vtty_io.cpp
+"""
 
 [tasks."test:native"]
 description = "test the C++ module"
@@ -97,7 +109,7 @@ PKG_CONFIG_PATH="$PWD/build/install/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG
 """
 
 [tasks.compiledb]
-description = "generate clangd compile commands, including C++ modules"
+description = "generate clangd compile commands for C and C++ sources"
 depends = ["build:native"]
 run = "xmake project -k compile_commands --lsp=clangd ."
 
@@ -107,7 +119,7 @@ run = "find bindings common stable include modules -type f \\( -name '*.c' -o -n
 
 [tasks."fmt:go"]
 description = "format Go code"
-run = "find . -path ./build -prune -o -name '*.go' -print0 | xargs -0 goimports -w && find . -path ./build -prune -o -name '*.go' -print0 | xargs -0 gofumpt -w"
+run = "find . -path ./build -prune -o -name '*.go' -print0 | xargs -0 goimports -w && find . -path ./build -prune -o -name '*.go' -print0 | xargs -0 gofumpt -w && go mod tidy && go -C examples/consumer mod tidy"
 
 [tasks.clean]
 description = "remove generated build files"

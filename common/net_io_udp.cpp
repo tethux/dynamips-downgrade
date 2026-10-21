@@ -23,9 +23,11 @@ extern "C" {
 namespace dynamips::nio {
 namespace {
 using result = std::expected<void, std::error_code>;
+
 fn failure(std::errc value) -> std::unexpected<std::error_code> {
   return std::unexpected(std::make_error_code(value));
 }
+
 template <typename Operation>
 fn attempt(Operation operation) noexcept -> result {
   try {
@@ -38,6 +40,7 @@ fn attempt(Operation operation) noexcept -> result {
     return failure(std::errc::io_error);
   }
 }
+
 struct listener {
   asio::ip::udp::socket socket;
   asio::ip::udp::endpoint sender;
@@ -66,9 +69,10 @@ struct receivers {
   fn start() noexcept -> result;
   fn stop() noexcept -> result;
   fn arm(const std::shared_ptr<listener> &entry) noexcept -> result;
-  fn add(netio_desc &nio, netio_udp_handler handler, void *a, void *b) noexcept
-      -> result;
+  fn add(netio_desc &nio, netio_udp_handler handler, void *a,
+           void *b) noexcept -> result;
   fn remove(netio_desc &nio, bool all) noexcept -> result;
+
   fn cancel(listener &entry) -> void {
     entry.active = false;
     std::error_code error;
@@ -76,11 +80,13 @@ struct receivers {
     if (error)
       std::fprintf(stderr, "UDP listener close: error %d\n", error.value());
   }
+
   ~receivers() {
     if (!stop())
       std::terminate();
   }
 };
+
 receivers state;
 
 fn receivers::start() noexcept -> result {
@@ -108,6 +114,7 @@ fn receivers::start() noexcept -> result {
     return {};
   });
 }
+
 fn receivers::stop() noexcept -> result {
   return attempt([&]() -> result {
     {
@@ -116,7 +123,7 @@ fn receivers::stop() noexcept -> result {
         return {};
       if (worker.get_id() == std::this_thread::get_id())
         return failure(std::errc::resource_deadlock_would_occur);
-      for (let &[ nio, entry ] : listeners)
+      for (let &[nio, entry] : listeners)
         cancel(*entry);
       listeners.clear();
       work.reset();
@@ -130,6 +137,7 @@ fn receivers::stop() noexcept -> result {
     return {};
   });
 }
+
 fn receivers::arm(const std::shared_ptr<listener> &entry) noexcept -> result {
   return attempt([&]() -> result {
     entry->socket.async_receive_from(
@@ -180,8 +188,9 @@ fn receivers::arm(const std::shared_ptr<listener> &entry) noexcept -> result {
     return {};
   });
 }
+
 fn receivers::add(netio_desc &nio, netio_udp_handler handler, void *a,
-                  void *b) noexcept -> result {
+                    void *b) noexcept -> result {
   return attempt([&]() -> result {
     let lock = std::lock_guard{mutex};
     if (!started || !handler ||
@@ -219,6 +228,7 @@ fn receivers::add(netio_desc &nio, netio_udp_handler handler, void *a,
     return {};
   });
 }
+
 fn receivers::remove(netio_desc &nio, bool all) noexcept -> result {
   return attempt([&]() -> result {
     let lock = std::lock_guard{mutex};
@@ -236,9 +246,10 @@ fn receivers::remove(netio_desc &nio, bool all) noexcept -> result {
 } // namespace
 
 fn listen_udp(netio_desc &endpoint, netio_udp_handler handler, void *a,
-              void *b) noexcept -> result {
+                void *b) noexcept -> result {
   return state.add(endpoint, handler, a, b);
 }
+
 fn unlisten_udp(netio_desc &endpoint, bool all) noexcept -> result {
   return state.remove(endpoint, all);
 }
@@ -247,15 +258,18 @@ fn unlisten_udp(netio_desc &endpoint, bool all) noexcept -> result {
 cfn netio_udp_rxl_init() -> int {
   return dynamips::nio::state.start() ? 0 : -1;
 }
+
 cfn netio_udp_rxl_shutdown() -> void {
   if (let stopped = dynamips::nio::state.stop(); !stopped)
     std::fprintf(stderr, "UDP listener shutdown: error %d\n",
                  stopped.error().value());
 }
+
 cfn netio_udp_rxl_add(netio_desc *nio, netio_udp_handler handler, void *a,
                       void *b) -> int {
   return nio && dynamips::nio::listen_udp(*nio, handler, a, b) ? 0 : -1;
 }
+
 cfn netio_udp_rxl_remove(netio_desc *nio, int all) -> int {
   return nio && dynamips::nio::unlisten_udp(*nio, all != 0) ? 0 : -1;
 }

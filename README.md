@@ -42,7 +42,10 @@ cppcheck. The C++23 module partitions are checked by the Clang build because
 xmake's compilation database does not currently include their module commands
 for clang-tidy. xmake compiles with 14 parallel jobs by default here; set
 `DYNAMIPS_BUILD_JOBS` to change the task setting. Use `mise run fmt:go` for Go
-formatting.
+formatting and tidying both Go modules. `mise run lint:cpp:ports` checks the
+migrated utility, packet, UDP and console C++ sources with strict
+conversion/pedantic warnings as errors
+and focused Clang analysis. Run `mise run compiledb` to prepare clangd.
 
 ## Go consumers
 

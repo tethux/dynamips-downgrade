@@ -23,9 +23,11 @@ namespace {
 using result = std::expected<void, std::error_code>;
 using bytes = std::span<const unsigned char>;
 constexpr std::size_t queue_limit = 1024 * 1024;
+
 fn failure(std::errc error) -> std::unexpected<std::error_code> {
   return std::unexpected(std::make_error_code(error));
 }
+
 template <typename Operation>
 fn attempt(Operation operation) noexcept -> result {
   try {
@@ -39,6 +41,7 @@ fn attempt(Operation operation) noexcept -> result {
   }
 }
 struct endpoint;
+
 struct channel {
   std::variant<asio::ip::tcp::socket, asio::posix::stream_descriptor> stream;
   std::weak_ptr<endpoint> owner;
@@ -49,12 +52,14 @@ struct channel {
   int original_flags = -1;
   bool active = true;
   bool ready = false;
+
   channel(asio::io_context &context, bool tcp)
       : stream(tcp ? decltype(stream){std::in_place_type<asio::ip::tcp::socket>,
                                       context}
                    : decltype(stream){
                          std::in_place_type<asio::posix::stream_descriptor>,
                          context}) {}
+
   ~channel() {
     if (original_flags >= 0) {
       const int descriptor =
@@ -64,20 +69,24 @@ struct channel {
     }
   }
 };
+
 struct endpoint {
   virtual_tty *native;
   bool active = true;
   bool closing = false;
   std::vector<std::shared_ptr<asio::ip::tcp::acceptor>> listeners;
   std::map<int, std::shared_ptr<channel>> channels;
+
   explicit endpoint(virtual_tty &owner) : native(&owner) {}
 };
+
 struct input {
   std::shared_ptr<endpoint> owner;
   std::shared_ptr<channel> source;
   bool connected;
   std::size_t size;
 };
+
 struct terminals {
   asio::io_context context;
   std::optional<asio::executor_work_guard<asio::io_context::executor_type>>
@@ -93,11 +102,12 @@ struct terminals {
   fn add(virtual_tty &, transport, std::span<const int>) noexcept -> result;
   fn remove(virtual_tty &) noexcept -> result;
   fn accept(const std::shared_ptr<endpoint> &,
-            const std::shared_ptr<asio::ip::tcp::acceptor> &) noexcept
+              const std::shared_ptr<asio::ip::tcp::acceptor> &) noexcept
       -> result;
   fn read(const std::shared_ptr<channel> &) noexcept -> result;
   fn send(const std::shared_ptr<channel> &) noexcept -> result;
   fn enqueue(const std::shared_ptr<channel> &, bytes) noexcept -> result;
+
   fn cancel(std::shared_ptr<channel> client) -> void {
     client->active = false;
     std::error_code error;
@@ -113,6 +123,7 @@ struct terminals {
     client->output.clear();
     client->pending = 0;
   }
+
   fn cancel(const std::shared_ptr<endpoint> &owner) -> void {
     owner->active = false;
     owner->closing = true;
@@ -126,8 +137,9 @@ struct terminals {
     while (!owner->channels.empty())
       cancel(owner->channels.begin()->second);
   }
+
   fn failed(const std::shared_ptr<channel> &client,
-            std::error_code error) noexcept -> void {
+              std::error_code error) noexcept -> void {
     const let cleaned = attempt([&]() -> result {
       let lock = std::lock_guard{mutex};
       cancel(client);
@@ -136,11 +148,13 @@ struct terminals {
     std::fprintf(stderr, "console FD %d: error %d (cleanup %d)\n", client->fd,
                  error.value(), cleaned ? 0 : cleaned.error().value());
   }
+
   ~terminals() {
     if (!stop())
       std::terminate();
   }
 };
+
 terminals state;
 
 fn terminals::start() noexcept -> result {
@@ -154,12 +168,13 @@ fn terminals::start() noexcept -> result {
     return {};
   });
 }
+
 fn terminals::stop() noexcept -> result {
   return attempt([&]() -> result {
     let lock = std::lock_guard{mutex};
     if (!started)
       return {};
-    for (let &[ native, owner ] : endpoints)
+    for (let &[native, owner] : endpoints)
       cancel(owner);
     endpoints.clear();
     events.clear();
@@ -169,6 +184,7 @@ fn terminals::stop() noexcept -> result {
     return {};
   });
 }
+
 fn terminals::accept(
     const std::shared_ptr<endpoint> &owner,
     const std::shared_ptr<asio::ip::tcp::acceptor> &listener) noexcept
@@ -200,7 +216,9 @@ fn terminals::accept(
     return {};
   });
 }
-fn terminals::read(const std::shared_ptr<channel> &client) noexcept -> result {
+
+fn terminals::read(const std::shared_ptr<channel> &client) noexcept
+    -> result {
   return attempt([&]() -> result {
     std::visit(
         [&](auto &stream) {
@@ -230,7 +248,9 @@ fn terminals::read(const std::shared_ptr<channel> &client) noexcept -> result {
     return {};
   });
 }
-fn terminals::send(const std::shared_ptr<channel> &client) noexcept -> result {
+
+fn terminals::send(const std::shared_ptr<channel> &client) noexcept
+    -> result {
   return attempt([&]() -> result {
     let message = client->output.front();
     std::visit(
@@ -261,8 +281,9 @@ fn terminals::send(const std::shared_ptr<channel> &client) noexcept -> result {
     return {};
   });
 }
+
 fn terminals::enqueue(const std::shared_ptr<channel> &client,
-                      bytes data) noexcept -> result {
+                        bytes data) noexcept -> result {
   const let queued = attempt([&]() -> result {
     if (!client->active)
       return failure(std::errc::broken_pipe);
@@ -290,8 +311,9 @@ fn terminals::enqueue(const std::shared_ptr<channel> &client,
     cancel(client);
   return queued;
 }
+
 fn terminals::add(virtual_tty &native, transport type,
-                  std::span<const int> fds) noexcept -> result {
+                    std::span<const int> fds) noexcept -> result {
   return attempt([&]() -> result {
     let lock = std::lock_guard{mutex};
     if (!started || endpoints.contains(&native))
@@ -353,6 +375,7 @@ fn terminals::add(virtual_tty &native, transport type,
     return configured;
   });
 }
+
 fn terminals::remove(virtual_tty &native) noexcept -> result {
   return attempt([&]() -> result {
     let lock = std::unique_lock{mutex};
@@ -364,7 +387,7 @@ fn terminals::remove(virtual_tty &native) noexcept -> result {
     const let deadline =
         std::chrono::steady_clock::now() + std::chrono::milliseconds{250};
     const let pending = [&] {
-      for (const let &[ fd, client ] : owner->channels)
+      for (const let &[fd, client] : owner->channels)
         if (client->pending)
           return true;
       return false;
@@ -385,10 +408,14 @@ fn terminals::remove(virtual_tty &native) noexcept -> result {
 } // namespace
 
 fn attach(virtual_tty &owner, transport type,
-          std::span<const int> descriptors) noexcept -> result {
+            std::span<const int> descriptors) noexcept -> result {
   return state.add(owner, type, descriptors);
 }
-fn detach(virtual_tty &owner) noexcept -> result { return state.remove(owner); }
+
+fn detach(virtual_tty &owner) noexcept -> result {
+  return state.remove(owner);
+}
+
 fn write(virtual_tty &native, bytes data) noexcept -> result {
   return attempt([&]() -> result {
     let lock = std::unique_lock{state.mutex};
@@ -397,7 +424,7 @@ fn write(virtual_tty &native, bytes data) noexcept -> result {
       return failure(std::errc::broken_pipe);
     let owner = found->second;
     bool pressure = data.size() > queue_limit;
-    for (const let &[ fd, client ] : owner->channels)
+    for (const let &[fd, client] : owner->channels)
       if (client->ready && data.size() > queue_limit - client->pending)
         pressure = true;
     if (!pressure) {
@@ -411,7 +438,7 @@ fn write(virtual_tty &native, bytes data) noexcept -> result {
       return {};
     }
     std::vector<std::shared_ptr<channel>> clients;
-    for (const let &[ fd, client ] : owner->channels)
+    for (const let &[fd, client] : owner->channels)
       if (client->ready)
         clients.push_back(client);
     for (let &client : clients) {
@@ -452,11 +479,13 @@ fn write(virtual_tty &native, bytes data) noexcept -> result {
 } // namespace dynamips::console
 
 cfn vtty_io_start() -> int { return dynamips::console::state.start() ? 0 : -1; }
+
 cfn vtty_io_stop() -> void {
   if (let stopped = dynamips::console::state.stop(); !stopped)
     std::fprintf(stderr, "console shutdown: error %d\n",
                  stopped.error().value());
 }
+
 cfn vtty_io_attach(virtual_tty *owner, int type, const int *fds, size_t count)
     -> int {
   if (!owner || type < 0 || type > 3)
@@ -467,9 +496,11 @@ cfn vtty_io_attach(virtual_tty *owner, int type, const int *fds, size_t count)
              ? 0
              : -1;
 }
+
 cfn vtty_io_detach(virtual_tty *owner) -> int {
   return owner && dynamips::console::detach(*owner) ? 0 : -1;
 }
+
 cfn vtty_io_write(virtual_tty *owner, const void *data, size_t size)
     -> ssize_t {
   return owner && dynamips::console::write(
@@ -477,6 +508,7 @@ cfn vtty_io_write(virtual_tty *owner, const void *data, size_t size)
              ? static_cast<ssize_t>(size)
              : -1;
 }
+
 cfn vtty_io_write_fd(int fd, const void *data, size_t size) -> ssize_t {
   using namespace dynamips::console;
   const let queued = attempt([&]() -> result {
@@ -492,6 +524,7 @@ cfn vtty_io_write_fd(int fd, const void *data, size_t size) -> ssize_t {
   });
   return queued ? static_cast<ssize_t>(size) : -1;
 }
+
 cfn vtty_io_take(vtty_io_event *out) -> int {
   using namespace dynamips::console;
   if (!out)
@@ -524,6 +557,7 @@ cfn vtty_io_take(vtty_io_event *out) -> int {
   });
   return taken ? status : -1;
 }
+
 cfn vtty_io_drain() -> void {
   using namespace dynamips::console;
   const let drained = attempt([&]() -> result {
@@ -535,6 +569,7 @@ cfn vtty_io_drain() -> void {
     std::fprintf(stderr, "console cancellation drain: error %d\n",
                  drained.error().value());
 }
+
 cfn vtty_io_active(const vtty_io_event *event) -> int {
   using namespace dynamips::console;
   bool active = false;
@@ -547,6 +582,7 @@ cfn vtty_io_active(const vtty_io_event *event) -> int {
   });
   return checked && active;
 }
+
 cfn vtty_io_complete(vtty_io_event *event) -> void {
   using namespace dynamips::console;
   std::unique_ptr<input> input{static_cast<struct input *>(event->handle)};

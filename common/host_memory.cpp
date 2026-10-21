@@ -9,6 +9,7 @@ namespace {
 fn failure(int value) -> std::unexpected<std::error_code> {
   return std::unexpected(std::error_code{value, std::generic_category()});
 }
+
 using file = std::unique_ptr<FILE, decltype(&std::fclose)>;
 } // namespace
 

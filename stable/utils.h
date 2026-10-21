@@ -147,12 +147,12 @@ extern FILE *log_file;
 
 /* Check status of a bit */
 static inline int check_bit(u_int old, u_int new_value, u_int bit) {
-  int mask = 1 << bit;
+  u_int mask = 1U << bit;
 
-  if ((old & mask) && !(new_value &mask))
+  if ((old & mask) && !(new_value & mask))
     return (1); /* bit unset */
 
-  if (!(old & mask) && (new_value &mask))
+  if (!(old & mask) && (new_value & mask))
     return (2); /* bit set */
 
   /* no change */
@@ -173,7 +173,7 @@ static forced_inline m_int32_t sign_extend_32(m_int32_t x, int len) {
 
 /* Extract bits from a 32-bit values */
 static inline int bits(m_uint32_t val, int start, int end) {
-  return ((val >> start) & ((1 << (end - start + 1)) - 1));
+  return (int)((val >> start) & ((1U << (end - start + 1)) - 1U));
 }
 
 /* Normalize a size */
@@ -183,7 +183,7 @@ static inline u_int normalize_size(u_int val, u_int nb, int shift) {
 
 /* Convert a 16-bit number between little and big endian */
 static forced_inline m_uint16_t swap16(m_uint16_t value) {
-  return ((value >> 8) | ((value & 0xFF) << 8));
+  return (m_uint16_t)((value >> 8) | ((value & 0xFF) << 8));
 }
 
 /* Convert a 32-bit number between little and big endian */
@@ -251,28 +251,29 @@ static inline m_tmcnt_t m_gettime_adj(void) {
 
 /* Get a byte-swapped 16-bit value on a non-aligned area */
 static inline m_uint16_t m_ntoh16(m_uint8_t *ptr) {
-  m_uint16_t val = (ptr[0] << 8) | ptr[1];
+  m_uint16_t val = (m_uint16_t)((ptr[0] << 8) | ptr[1]);
   return (val);
 }
 
 /* Get a byte-swapped 32-bit value on a non-aligned area */
 static inline m_uint32_t m_ntoh32(m_uint8_t *ptr) {
-  m_uint32_t val = (ptr[0] << 24) | (ptr[1] << 16) | (ptr[2] << 8) | ptr[3];
+  m_uint32_t val = ((m_uint32_t)ptr[0] << 24) | ((m_uint32_t)ptr[1] << 16) |
+                   ((m_uint32_t)ptr[2] << 8) | ptr[3];
   return (val);
 }
 
 /* Set a byte-swapped 16-bit value on a non-aligned area */
 static inline void m_hton16(m_uint8_t *ptr, m_uint16_t val) {
-  ptr[0] = val >> 8;
-  ptr[1] = val;
+  ptr[0] = (m_uint8_t)(val >> 8);
+  ptr[1] = (m_uint8_t)val;
 }
 
 /* Set a byte-swapped 32-bit value on a non-aligned area */
 static inline void m_hton32(m_uint8_t *ptr, m_uint32_t val) {
-  ptr[0] = val >> 24;
-  ptr[1] = val >> 16;
-  ptr[2] = val >> 8;
-  ptr[3] = val;
+  ptr[0] = (m_uint8_t)(val >> 24);
+  ptr[1] = (m_uint8_t)(val >> 16);
+  ptr[2] = (m_uint8_t)(val >> 8);
+  ptr[3] = (m_uint8_t)val;
 }
 
 /* Add an element to a list */

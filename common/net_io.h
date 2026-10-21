@@ -123,7 +123,8 @@ typedef struct netio_fifo_pkt netio_fifo_pkt_t;
 struct netio_fifo_pkt {
   netio_fifo_pkt_t *next;
   size_t pkt_len;
-  char pkt[0];
+  /* Retain the zero-length tail and sizeof for the native C ABI. */
+  __extension__ char pkt[0];
 };
 
 /* Netio FIFO */

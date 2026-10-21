@@ -45,7 +45,9 @@ namespace {
 struct free_text {
   fn operator()(char *p) const noexcept -> void { std::free(p); }
 };
+
 using text_copy = std::unique_ptr<char, free_text>;
+
 fn cidr(const char *text, unsigned long maximum) noexcept
     -> std::expected<std::pair<text_copy, unsigned long>,
                      dynamips::packet::error> {
@@ -75,6 +77,7 @@ cfn ip_parse_cidr(char *token, n_ip_addr_t *address, n_ip_addr_t *mask) -> int {
   *mask = parsed->net_mask;
   return 0;
 }
+
 cfn ipv6_parse_cidr(char *token, n_ipv6_addr_t *address, u_int *mask) -> int {
   let parsed = dynamips::packet::ipv6_prefix(token);
   if (!parsed)
@@ -130,7 +133,7 @@ cfn parse_mac_addr(n_eth_addr_t *addr, char *str) -> int {
 
   if (res == 6) {
     for (i = 0; i < N_ETH_ALEN; i++)
-      addr->eth_addr_byte[i] = v[i];
+      addr->eth_addr_byte[i] = static_cast<m_uint8_t>(v[i]);
     return (0);
   }
 
@@ -177,6 +180,7 @@ fn ipv4_prefix(const char *text) noexcept
     return std::unexpected(address.error());
   return n_ip_network_t{*address, ip_masks[split->second]};
 }
+
 fn ipv6_prefix(const char *text) noexcept
     -> std::expected<n_ipv6_network_t, error> {
   let split = cidr(text, 128);
@@ -187,10 +191,12 @@ fn ipv6_prefix(const char *text) noexcept
     return std::unexpected(address.error());
   return n_ipv6_network_t{*address, static_cast<unsigned int>(split->second)};
 }
+
 namespace {
 fn word(const unsigned char *p) noexcept -> unsigned short {
   return static_cast<unsigned short>((p[0] << 8) | p[1]);
 }
+
 fn sum_bytes(bytes data) noexcept -> unsigned int {
   unsigned int sum = 0;
   const let pairs = data.size() / 2;
@@ -200,6 +206,7 @@ fn sum_bytes(bytes data) noexcept -> unsigned int {
     sum += static_cast<unsigned int>(data.back()) << 8;
   return sum;
 }
+
 fn folded(unsigned int sum) noexcept -> unsigned short {
   sum = (sum & 0xffff) + (sum >> 16);
   sum = (sum & 0xffff) + (sum >> 16);
@@ -219,7 +226,7 @@ fn checksum(bytes data, unsigned int seed) noexcept -> unsigned short {
 }
 
 static fn analyze_into(n_pkt_ctx_t &ctx,
-                       std::span<unsigned char> frame) noexcept
+                        std::span<unsigned char> frame) noexcept
     -> std::expected<void, error> {
   ctx = {};
   ctx.pkt = frame.data();
@@ -291,18 +298,21 @@ fn ipv4(const char *text) noexcept -> std::expected<n_ip_addr_t, error> {
     return std::unexpected(error::invalid_address);
   return value;
 }
+
 fn ipv6(const char *text) noexcept -> std::expected<n_ipv6_addr_t, error> {
   n_ipv6_addr_t value;
   if (!text || n_ipv6_aton(&value, const_cast<char *>(text)) != 1)
     return std::unexpected(error::invalid_address);
   return value;
 }
+
 fn mac(const char *text) noexcept -> std::expected<n_eth_addr_t, error> {
   n_eth_addr_t value;
   if (!text || parse_mac_addr(&value, const_cast<char *>(text)) != 0)
     return std::unexpected(error::invalid_address);
   return value;
 }
+
 fn board_id(const char *text, int encoding) noexcept
     -> std::expected<std::array<unsigned char, 11>, error> {
   std::array<unsigned char, 11> value{};
@@ -317,6 +327,7 @@ cfn ip_verify_cksum(n_ip_hdr_t *hdr) -> int {
   return dynamips::packet::folded(dynamips::packet::sum_bytes(
              {p, static_cast<std::size_t>(p[0] & 15) * 4})) == 0;
 }
+
 cfn ip_compute_cksum(n_ip_hdr_t *hdr) -> void {
   let *p = reinterpret_cast<unsigned char *>(hdr);
   p[10] = p[11] = 0;
@@ -325,6 +336,7 @@ cfn ip_compute_cksum(n_ip_hdr_t *hdr) -> void {
   p[10] = static_cast<unsigned char>(value >> 8);
   p[11] = static_cast<unsigned char>(value);
 }
+
 cfn pkt_ctx_analyze(n_pkt_ctx_t *ctx, m_uint8_t *pkt, size_t len) -> int {
   if (!ctx || (!pkt && len))
     return FALSE;
@@ -337,6 +349,7 @@ cfn pkt_ctx_analyze(n_pkt_ctx_t *ctx, m_uint8_t *pkt, size_t len) -> int {
   }
   return TRUE;
 }
+
 cfn pkt_ctx_ip_analyze_l4(n_pkt_ctx_t *ctx) -> int {
   switch (ctx->ip_l4_proto) {
   case N_IP_PROTO_TCP:
@@ -351,13 +364,14 @@ cfn pkt_ctx_ip_analyze_l4(n_pkt_ctx_t *ctx) -> int {
   }
   return TRUE;
 }
+
 cfn pkt_ctx_tcp_cksum(n_pkt_ctx_t *ctx, int ph) -> m_uint16_t {
   using namespace dynamips::packet;
   if (!ctx || !ctx->ip || !ctx->l4)
     return 0;
   const let *ip = reinterpret_cast<const unsigned char *>(ctx->ip);
   const std::size_t hlen = (ip[0] & 15) * 4;
-  const std::size_t total = (ip[2] << 8) | ip[3];
+  const std::size_t total = (static_cast<std::size_t>(ip[2]) << 8) | ip[3];
   if (total < hlen)
     return 0;
   let *data = static_cast<unsigned char *>(ctx->l4);
@@ -370,16 +384,18 @@ cfn pkt_ctx_tcp_cksum(n_pkt_ctx_t *ctx, int ph) -> m_uint16_t {
     sum -= (static_cast<unsigned int>(data[skip]) << 8) | data[skip + 1];
   if (ph) {
     for (std::size_t i = 12; i < 20; i += 2)
-      sum += (ip[i] << 8) | ip[i + 1];
+      sum += (static_cast<unsigned int>(ip[i]) << 8) | ip[i + 1];
     sum += ctx->ip_l4_proto + len;
   }
   return folded(sum);
 }
+
 cfn cisco_isl_rewrite(m_uint8_t *pkt, m_uint32_t len) -> void {
   static constexpr unsigned char address[] = {1, 0, 12, 0, 16, 0};
   if (!pkt || len < N_ETH_HLEN || std::memcmp(pkt, address, 6) != 0)
     return;
-  const unsigned int wire_length = (pkt[12] << 8) | pkt[13];
+  const unsigned int wire_length =
+      (static_cast<unsigned int>(pkt[12]) << 8) | pkt[13];
   const unsigned int offset = N_ETH_HLEN + N_ISL_HDR_SIZE;
   if (wire_length < N_ISL_HDR_SIZE + 4 || len < 4)
     return;

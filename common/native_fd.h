@@ -15,18 +15,24 @@ class file_descriptor {
 
 public:
   explicit file_descriptor(int value = -1) noexcept : value_(value) {}
+
   file_descriptor(const file_descriptor &) = delete;
-  fn operator=(const file_descriptor &)->file_descriptor & = delete;
+  fn operator=(const file_descriptor &) -> file_descriptor & = delete;
+
   file_descriptor(file_descriptor &&other) noexcept : value_(other.release()) {}
+
   fn operator=(file_descriptor &&other) noexcept -> file_descriptor & {
     file_descriptor previous{std::exchange(value_, other.release())};
     return *this;
   }
+
   ~file_descriptor() {
     if (value_ >= 0 && close(value_) != 0)
       std::fprintf(stderr, "close FD %d: error %d\n", value_, errno);
   }
+
   fn get() const noexcept -> int { return value_; }
+
   fn release() noexcept -> int { return std::exchange(value_, -1); }
 };
 
