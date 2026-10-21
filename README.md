@@ -24,8 +24,9 @@ their own notices.
 
 ## Build and test
 
-The project uses xmake with Clang 19 or newer, C23, C++23, and libstdc++ 14
-or newer. Install libelf and libpcap development files to build the native code. Then run:
+The project uses xmake, C23 and C++23. Release builds use Clang 19 and
+libstdc++ 14 on Ubuntu 24.04. Install libelf and libpcap development files to
+build the native code. Then run:
 
 ```sh
 mise run build
@@ -64,7 +65,10 @@ Keep `PKG_CONFIG_PATH` set when building with `CGO_ENABLED=1`. Go downloads
 source only; it does not install native dependencies. Consumers do not need
 Xmake or a sibling checkout. The native static archives link against the
 system C++ runtime, libelf, libpcap and libnsl, so the final executable may
-still use shared system libraries. Match the Go and native release versions.
+still use shared system libraries. Match the Go and native release versions;
+the host needs glibc and a C++ runtime compatible with the Ubuntu 24.04 release
+build. After switching native installations, use `go build -a` or
+`go test -a -count=1`: Go may otherwise reuse cached cgo output.
 
 The [standalone consumer example](examples/consumer/) fetches the published
 module without a local replacement. Other native platforms require a source
@@ -91,7 +95,11 @@ PKG_CONFIG_PATH=/path/to/prefix/lib/pkgconfig pkg-config --cflags --libs dynamip
 ```
 
 Set `PKG_CONFIG_PATH` to that directory for native consumers using the
-installed archives. Go consumers use the same pkg-config package.
+installed archives. Go consumers use the same pkg-config package. Validate real IOS/JIT execution
+when changing compiler or wrapper settings: a Nix Clang 21 source build exposed
+an existing amd64 JIT register-preservation issue despite passing compilation
+and provider unit tests. The published v0.2.28 asset passed the full Tethux IOS
+lifecycle, persistence and networking suite in Nix.
 
 ## Go API
 

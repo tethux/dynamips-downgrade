@@ -7,7 +7,7 @@ as described in the [root README](../../README.md#go-consumers), then run:
 ```sh
 cd examples/consumer
 go mod tidy
-CGO_ENABLED=1 go run .
+CGO_ENABLED=1 go run -a .
 ```
 
 The example pins `v0.2.28`. Its native libraries come from release assets,
