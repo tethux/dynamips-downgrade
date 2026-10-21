@@ -14,7 +14,7 @@ jobs:
     env:
       DYNAMIPS_BUILD_JOBS: 4
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7.0.1
       - name: Install binding link dependencies
         run: |
           sudo apt-get update
@@ -26,7 +26,7 @@ jobs:
           ln -s /usr/bin/clang++-19 "$RUNNER_TEMP/clang-bin/clang++"
           ln -s /usr/bin/clang-scan-deps-19 "$RUNNER_TEMP/clang-bin/clang-scan-deps"
           echo "$RUNNER_TEMP/clang-bin" >> "$GITHUB_PATH"
-      - uses: jdx/mise-action@v3
+      - uses: jdx/mise-action@v5.2.2
         with:
           install_args: go golangci-lint github:xmake-io/xmake
       - run: mise run lint:go
