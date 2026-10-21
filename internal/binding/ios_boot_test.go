@@ -27,6 +27,9 @@ type iosRun struct {
 	ready   time.Duration
 	metrics processMetrics
 	outputs map[string]string
+	cli     time.Duration
+	goStart goMemory
+	goEnd   goMemory
 }
 
 type processMetrics struct {
@@ -44,6 +47,7 @@ type processSample struct {
 }
 
 // Set DYNAMIPS_IOS_ARCHIVE to a C7200 IOS zip to run this hardware integration test.
+// DYNAMIPS_IOS_TRIALS selects 1..5 alternating pairs; it defaults to 3.
 // DYNAMIPS_IOS_RAM_MB selects the image's required RAM; it defaults to 256.
 func TestC7200IOSBootParity(t *testing.T) {
 	archive := os.Getenv("DYNAMIPS_IOS_ARCHIVE")
@@ -70,11 +74,37 @@ func TestC7200IOSBootParity(t *testing.T) {
 	}
 	hz := clockTicksPerSecond(t)
 
-	t.Log("booting embedded C7200 IOS")
-	embedded := bootEmbeddedC7200(t, image, ramMB, hz)
-	t.Logf("embedded IOS ready after %s; booting legacy C7200 IOS", embedded.ready)
-	legacy := bootLegacyC7200(t, binary, image, ramMB, hz)
-	for _, command := range []string{"terminal length 0", "show version", "show ip interface brief", "configure terminal", "hostname paritytest", "end"} {
+	trials := 3
+	if configured := os.Getenv("DYNAMIPS_IOS_TRIALS"); configured != "" {
+		parsed, parseErr := strconv.Atoi(configured)
+		if parseErr != nil || parsed < 1 || parsed > 5 {
+			t.Fatalf("DYNAMIPS_IOS_TRIALS must be 1..5: %q", configured)
+		}
+		trials = parsed
+	}
+	pairs := make([]iosPair, 0, trials)
+	for trial := range trials {
+		t.Run(fmt.Sprintf("trial_%d", trial+1), func(t *testing.T) {
+			var embedded, legacy iosRun
+			if trial%2 == 0 {
+				t.Log("embedded → legacy")
+				embedded = bootEmbeddedC7200(t, image, ramMB, hz)
+				legacy = bootLegacyC7200(t, binary, image, ramMB, hz)
+			} else {
+				t.Log("legacy → embedded")
+				legacy = bootLegacyC7200(t, binary, image, ramMB, hz)
+				embedded = bootEmbeddedC7200(t, image, ramMB, hz)
+			}
+			checkIOSParity(t, embedded, legacy)
+			pairs = append(pairs, iosPair{embedded, legacy})
+		})
+	}
+	t.Log("\n" + formatIOSReport(pairs, ramMB, os.Getenv("DYNAMIPS_IOS_DETAILS") == "1"))
+}
+
+func checkIOSParity(t *testing.T, embedded, legacy iosRun) {
+	t.Helper()
+	for _, command := range []string{"terminal length 0", "show version", "show ip interface brief", "configure terminal", "hostname paritytest", "end", "show running-config"} {
 		if _, ok := embedded.outputs[command]; !ok {
 			t.Errorf("embedded IOS did not complete %q", command)
 		}
@@ -82,58 +112,17 @@ func TestC7200IOSBootParity(t *testing.T) {
 			t.Errorf("legacy IOS did not complete %q", command)
 		}
 	}
-	for _, command := range []string{"show version", "show ip interface brief"} {
+	for _, command := range []string{"show version", "show ip interface brief", "show running-config"} {
 		for _, marker := range map[string][]string{
 			"show version":            {"Cisco IOS Software", "uptime is"},
 			"show ip interface brief": {"Interface", "FastEthernet1/0"},
+			"show running-config":     {"hostname paritytest", "interface FastEthernet1/0"},
 		}[command] {
 			if !strings.Contains(embedded.outputs[command], marker) || !strings.Contains(legacy.outputs[command], marker) {
 				t.Errorf("%q missing %q in embedded or legacy output", command, marker)
 			}
 		}
 	}
-	logIOSComparison(t, embedded, legacy)
-}
-
-func logIOSComparison(t *testing.T, embedded, legacy iosRun) {
-	t.Helper()
-	e, l := embedded.metrics, legacy.metrics
-	lines := []string{
-		"C7200 IOS: embedded API vs legacy hypervisor API",
-		fmt.Sprintf("%-27s %12s %12s %14s %11s", "Metric", "Embedded", "Legacy", "Saved", "Saved (%)"),
-		strings.Repeat("-", 80),
-	}
-	for _, row := range []struct {
-		name     string
-		unit     string
-		embedded float64
-		legacy   float64
-	}{
-		{"VM startup", "s", embedded.startup.Seconds(), legacy.startup.Seconds()},
-		{"IOS ready (wall time)", "s", embedded.ready.Seconds(), legacy.ready.Seconds()},
-		{"CPU total through CLI", "s", (e.cpuUser + e.cpuSystem).Seconds(), (l.cpuUser + l.cpuSystem).Seconds()},
-		{"CPU user", "s", e.cpuUser.Seconds(), l.cpuUser.Seconds()},
-		{"CPU system", "s", e.cpuSystem.Seconds(), l.cpuSystem.Seconds()},
-		{"RSS before VM", "MiB", mebibytes(e.rssStart), mebibytes(l.rssStart)},
-		{"RSS after CLI", "MiB", mebibytes(e.rssReady), mebibytes(l.rssReady)},
-		{"RSS sampled peak", "MiB", mebibytes(e.rssPeak), mebibytes(l.rssPeak)},
-		{"RSS growth through CLI", "MiB", mebibytes(e.rssReady) - mebibytes(e.rssStart), mebibytes(l.rssReady) - mebibytes(l.rssStart)},
-	} {
-		saved := row.legacy - row.embedded
-		percent := "n/a"
-		if row.legacy > 0 {
-			percent = fmt.Sprintf("%+.2f%%", 100*saved/row.legacy)
-		}
-		lines = append(lines, fmt.Sprintf("%-27s %8.3f %-3s %8.3f %-3s %+10.3f %-3s %11s", row.name, row.embedded, row.unit, row.legacy, row.unit, saved, row.unit, percent))
-	}
-	lines = append(lines,
-		"Saved = legacy - embedded; positive is less time/memory, negative is more.",
-		"CPU and final RSS include CLI checks. RSS peak is sampled every 100ms.",
-		"Embedded RSS includes Go/runtime overhead; RSS growth approximates VM memory.",
-		"Legacy startup includes process launch; embedded starts at VM configuration.",
-		"One sequential run per API, using the same native core; not a before/after benchmark.",
-	)
-	t.Log("\n" + strings.Join(lines, "\n"))
 }
 
 func extractC7200IOS(t *testing.T, archive string) string {
@@ -189,12 +178,20 @@ func bootEmbeddedC7200(t *testing.T, image string, ramMB uint32, hz uint64) iosR
 	startedAt := time.Now()
 	pid := os.Getpid()
 	baseline := sampleProcess(t, pid)
+	goStart := sampleGoMemory()
+	_, stopSampling := watchRSS(pid, baseline.rssBytes)
+	defer stopSampling()
 	port := reserveConsolePort(t)
-	vm, err := testRuntime.CreateVM(dynamips.VMConfig{Name: "ios-embedded", InstanceID: 181, Platform: "c7200"})
+	vm, err := testRuntime.CreateVM(dynamips.VMConfig{Name: "ios-embedded", InstanceID: 181, Platform: "c7200", StateDirectory: t.TempDir()})
 	if err != nil {
 		t.Fatalf("create embedded C7200: %v", err)
 	}
-	defer vm.Close()
+	defer func() {
+		if deleteErr := vm.Delete(); deleteErr != nil {
+			t.Errorf("delete embedded C7200: %v", deleteErr)
+			vm.Close()
+		}
+	}()
 	started := false
 	defer func() {
 		if started {
@@ -227,12 +224,10 @@ func bootEmbeddedC7200(t *testing.T, image string, ramMB uint32, hz uint64) iosR
 	if err != nil || status != dynamips.VMRunning {
 		t.Fatalf("embedded C7200 status after start: %d, %v", status, err)
 	}
-	_, stopSampling := watchRSS(pid, baseline.rssBytes)
-	defer stopSampling()
 	outputs, readyAt := exerciseIOSConsole(t, "embedded", port)
 	ready := readyAt.Sub(startedAt)
 	final := sampleProcess(t, pid)
-	return iosRun{startup: startup, ready: ready, metrics: calculateMetrics(baseline, final, stopSampling(), hz), outputs: outputs}
+	return iosRun{startup: startup, ready: ready, cli: time.Since(readyAt), goStart: goStart, goEnd: sampleGoMemory(), metrics: calculateMetrics(baseline, final, stopSampling(), hz), outputs: outputs}
 }
 
 func bootLegacyC7200(t *testing.T, binary, image string, ramMB uint32, hz uint64) iosRun {
@@ -262,7 +257,7 @@ func bootLegacyC7200(t *testing.T, binary, image string, ramMB uint32, hz uint64
 	outputs, readyAt := exerciseIOSConsole(t, "legacy", port)
 	ready := readyAt.Sub(startedAt)
 	final := sampleProcess(t, pid)
-	return iosRun{startup: startup, ready: ready, metrics: calculateMetrics(baseline, final, stopSampling(), hz), outputs: outputs}
+	return iosRun{startup: startup, ready: ready, cli: time.Since(readyAt), metrics: calculateMetrics(baseline, final, stopSampling(), hz), outputs: outputs}
 }
 
 func reserveConsolePort(t *testing.T) uint16 {
@@ -313,7 +308,7 @@ func exerciseIOSConsole(t *testing.T, kind string, port uint16) (map[string]stri
 	}
 	readyAt := time.Now()
 	outputs := make(map[string]string)
-	for _, command := range []string{"terminal length 0", "show version", "show ip interface brief", "configure terminal", "hostname paritytest", "end"} {
+	for _, command := range []string{"terminal length 0", "show version", "show ip interface brief", "configure terminal", "hostname paritytest", "end", "show running-config"} {
 		writeIOS(t, conn, kind, command)
 		prompt, output := readIOSPrompt(t, conn, kind, time.Now().Add(30*time.Second), false, command)
 		if strings.Contains(output, "% Invalid input") || strings.Contains(output, "% Incomplete command") || strings.Contains(output, "% Error") {
