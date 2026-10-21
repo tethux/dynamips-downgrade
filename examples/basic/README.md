@@ -2,6 +2,14 @@
 
 Go reference: [examples/basic](https://pkg.go.dev/github.com/tethux/dynamips-downgrade/examples/basic).
 
+`mise run run:example` builds the native library automatically. For direct
+`go run` commands, first prepare pkg-config:
+
+```sh
+mise run build:native
+export PKG_CONFIG_PATH="$PWD/build/install/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
+```
+
 Set the path to a local C7200 IOS image or zip archive:
 
 ```sh
