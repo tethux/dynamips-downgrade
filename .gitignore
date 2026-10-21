@@ -4,7 +4,7 @@
 /build/*
 /.xmake/
 /compile_commands.json
-/*_log.txt
+*_log.txt
 
 /dist/
 *.a
@@ -12,3 +12,4 @@
 *.so
 *.dylib
 *.exe
+ilt_*

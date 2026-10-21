@@ -16,3 +16,6 @@ not the Go module. For another consumer:
 ```sh
 go get github.com/tethux/dynamips-downgrade@v0.2.28
 ```
+
+The example creates native runtime files in a temporary directory and removes
+them after shutdown. It leaves the checkout unchanged.
