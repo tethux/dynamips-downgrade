@@ -24,7 +24,12 @@ export namespace jit {
 // effects.
 class memory_dispatcher {
 public:
-  static constexpr std::size_t cache_capacity = 1024;
+  // Keep hot loops resident when unrelated guest PCs share an index.
+  static constexpr std::size_t cache_capacity = 8192;
+  static constexpr std::size_t cache_ways = 4;
+  static constexpr std::size_t cache_sets = cache_capacity / cache_ways;
+  static_assert(cache_capacity % cache_ways == 0 &&
+                std::has_single_bit(cache_sets));
 
   [[nodiscard]] static fn create(memory::address_space &memory) noexcept
       -> std::expected<std::unique_ptr<memory_dispatcher>, dispatch_error> {
@@ -59,11 +64,13 @@ public:
         return std::unexpected(
             dispatch_error{dispatch_error_code::invalid_pc, state.pc.value});
       const let pc = state.pc.value;
-      const let index =
-          ((pc >> 2) ^ (pc >> 14) ^ (pc >> 26)) & (cache_capacity - 1);
-      let &entry = cache_[index];
-      if (!valid(entry, pc)) {
-        if (let compiled = compile(entry, pc, dump_ir); !compiled) {
+      let &entry = select(pc);
+      if (!valid(entry, pc) ||
+          entry.instructions > budget - result.instructions) {
+        if (let compiled = compile(
+                entry, pc, dump_ir,
+                std::min<std::uint64_t>(64, budget - result.instructions));
+            !compiled) {
           if (compiled.error().code == dispatch_error_code::memory)
             state.pc.value = compiled.error().pc;
           return std::unexpected(compiled.error());
@@ -74,7 +81,7 @@ public:
         result.reason = stop_reason::budget_exhausted;
         return result;
       }
-      const let executed = entry.code->run(
+      const let executed = entry.code->execute(
           state.registers, memory_, &state.cop0, &state.hilo, &state.cop1);
       if (!executed) {
         state.pc.value = executed.error().pc;
@@ -89,10 +96,14 @@ public:
             executed.error().branch_pc,
             executed.error().code});
       }
-      state.cop0.advance_cycles(entry.instructions);
-      state.pc.value = *executed;
-      result.instructions += entry.instructions;
+      state.cop0.advance_cycles(executed->instructions);
+      state.pc.value = executed->next_pc;
+      result.instructions += executed->instructions;
       result.blocks++;
+      if (executed->reason == amd64::exit_reason::guest_exception) {
+        result.reason = stop_reason::guest_exception;
+        return result;
+      }
     }
     return result;
   }
@@ -107,19 +118,49 @@ private:
     std::array<const std::byte *, 2> host{};
   };
 
+  struct cache_set {
+    std::array<cached_block, cache_ways> entries{};
+    std::size_t victim = 0;
+  };
+
   memory::address_space &memory_;
   amd64::compiler compiler_;
-  std::array<cached_block, cache_capacity> cache_{};
+  std::array<cache_set, cache_sets> cache_{};
   alignas(std::max_align_t) std::array<std::byte, 64 * 1024> scratch_;
 
   memory_dispatcher(memory::address_space &memory,
                     amd64::compiler compiler) noexcept
       : memory_(memory), compiler_(std::move(compiler)) {}
 
-  fn valid(const cached_block &entry, std::uint64_t pc) noexcept -> bool {
-    if (!entry.code || entry.pc != pc ||
-        entry.generation != memory_.mapping_generation())
+  fn select(std::uint64_t pc) noexcept -> cached_block & {
+    const let index = ((pc >> 2) ^ (pc >> 14) ^ (pc >> 26)) & (cache_sets - 1);
+    let &set = cache_[index];
+    for (let &entry : set.entries)
+      if (entry.code && entry.pc == pc)
+        return entry;
+    for (let &entry : set.entries)
+      if (!entry.code)
+        return entry;
+    let &entry = set.entries[set.victim];
+    set.victim = (set.victim + 1) % cache_ways;
+    return entry;
+  }
+
+  fn valid(cached_block &entry, std::uint64_t pc) noexcept -> bool {
+    if (!entry.code || entry.pc != pc)
       return false;
+    if (entry.generation != memory_.mapping_generation()) {
+      // Re-resolve before touching borrowed backing after any mapping edit.
+      const let first = memory_.executable_tail({pc});
+      if (!first || first->data() != entry.host[0])
+        return false;
+      if (entry.instructions * 4 > first->size()) {
+        const let second = memory_.executable_tail({pc + first->size()});
+        if (!second || second->data() != entry.host[1])
+          return false;
+      }
+      entry.generation = memory_.mapping_generation();
+    }
     const let bytes =
         std::as_bytes(std::span{entry.source}).first(entry.instructions * 4);
     const let first = std::min(
@@ -130,12 +171,13 @@ private:
                         bytes.size() - first) == 0);
   }
 
-  fn compile(cached_block &entry, std::uint64_t pc, bool dump_ir) noexcept
+  fn compile(cached_block &entry, std::uint64_t pc, bool dump_ir,
+               std::uint64_t limit) noexcept
       -> std::expected<void, dispatch_error> {
     std::array<mips64::instruction_word, 65> words{};
     std::size_t count = 0;
     bool delay = false;
-    while (count < 64 || delay) {
+    while (count < limit || delay) {
       if (count > (UINT64_MAX - pc) / 4)
         return std::unexpected(
             dispatch_error{dispatch_error_code::invalid_pc, pc});
@@ -159,6 +201,10 @@ private:
       if (delay)
         break;
       if (mips64::has_delay_slot({*fetched})) {
+        if (count == limit && count > 1) {
+          count--;
+          break;
+        }
         delay = true;
         continue;
       }
