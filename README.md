@@ -41,7 +41,7 @@ their own notices.
 
 ## Rewrite checkpoint
 
-Verified on Linux amd64 on 2026-11-12 with a C7200 NPE-400 and IOS
+Verified on Linux amd64 on 2026-11-13 with a C7200 NPE-400 and IOS
 12.4(24)T5: the guest decompresses its image, hands off to the IOS kernel,
 sets up mappings and prints:
 
@@ -52,7 +52,7 @@ Cisco IOS Software, 7200 Software (C7200-ADVENTERPRISEK9-M), Version 12.4(24)T5,
 This is a boot checkpoint, not a complete IOS boot, working CLI or network
 validation. The next observed stop is an unimplemented I/O FPGA DS1620
 temperature-control access at physical address `0x1e84020c`, guest PC
-`0x6021da10`. Missing PCMCIA identification also produces a warning before the
+`0x60216a70`. Missing PCMCIA identification also produces a warning before the
 banner. Cisco images are not distributed here.
 
 | Area | Implemented in the new core | Remaining limits |
@@ -64,6 +64,31 @@ banner. Cisco images are not distributed here.
 | Machine | ELF/ZIP loading, bundled ROM, NPE-400 geometry, ROMMON variables | Boot bring-up only; persistence parity is not established |
 | Devices | Queued SCN2681 console/aux, EEPROM reads, FPGA startup registers, GT64120 PCI configuration and built-in bridges | DS1620, PCMCIA, DMA, cards and packet delivery remain |
 | Time | CP0 Count/Compare and eligible interrupt delivery at block boundaries | Virtual instruction-based timing, not cycle accuracy |
+
+Translation-cache invalidation revalidates executable backing independently of
+compiled-code reuse; byte comparisons still detect writes through aliases.
+Native outcomes distinguish delivered overflow/syscall exceptions from host
+failures and charge only their executed instruction prefix. Annulled
+branch-likely delay slots do not advance virtual time. Memory dispatch
+can compile shorter straight-line prefixes for small budgets; a branch and
+its delay slot still require a budget of at least two. Memory faults still
+stop bring-up rather than delivering complete architectural TLB exceptions.
+CPU-owned segment translation, a physical-region bus, deterministic device
+events/IRQ routing remain migration work. A bounded independent integer interpreter now executes cold blocks and provides differential checks.
+
+The execution cache retains 8,192 blocks in four-way sets. Cold integer blocks
+use an independent interpreter before native promotion; hot loops use bounded
+native traces. RAM write versions, opaque-callback epochs and byte checks preserve
+code coherency, including physical aliases. Checked native RAM probes retain
+fault/MMIO fallbacks. Traces stop for instruction budgets, timer deadlines,
+code changes and device-service boundaries.
+
+On one Linux amd64 host, seven alternating process starts per core using the
+same IOS 12.4(24)T5 image and CPU 2 measured median launch-to-banner times of
+1.026 s for the new core and 1.111 s for legacy Dynamips (7.7% less time).
+The previous rewrite checkpoint measured 2.89 s. These are host-specific boot
+milestone measurements; CLI readiness and networking remain unvalidated.
+See `benchmarks/README.md` for reproduction commands.
 
 Unsupported operations report typed failures. Reaching the banner does not
 prove that other images, networking, persistence or teardown are ready.
