@@ -41,7 +41,7 @@ their own notices.
 
 ## Rewrite checkpoint
 
-Verified on Linux amd64 on 2026-11-12 with a C7200 NPE-400 and IOS
+Verified on Linux amd64 on 2026-11-14 with a C7200 NPE-400 and IOS
 12.4(24)T5: the guest decompresses its image, hands off to the IOS kernel,
 sets up mappings and prints:
 
@@ -50,20 +50,54 @@ Cisco IOS Software, 7200 Software (C7200-ADVENTERPRISEK9-M), Version 12.4(24)T5,
 ```
 
 This is a boot checkpoint, not a complete IOS boot, working CLI or network
-validation. The next observed stop is an unimplemented I/O FPGA DS1620
-temperature-control access at physical address `0x1e84020c`, guest PC
-`0x6021da10`. Missing PCMCIA identification also produces a warning before the
-banner. Cisco images are not distributed here.
+validation. Four DS1620 sensors now handle the I/O FPGA temperature protocol.
+The next observed stop is an unmapped access at guest address `0x10000403`,
+guest PC `0x6021ea64`. Missing PCMCIA identification also produces a warning
+before the banner. Cisco images are not distributed here.
 
 | Area | Implemented in the new core | Remaining limits |
 | --- | --- | --- |
 | CPU/JIT | MIPS64 integer operations, branches and delay slots, HI/LO, CP0, LL/SC, COP1 bit and memory transfers | Incomplete ISA; no full floating-point implementation |
 | IR | Compact 16-byte nodes, bounded storage, readable printing and optimization passes | More lowering and optimization work remains |
-| Memory | Big-endian RAM/MMIO, two-level translation cache, architectural TLB setup/probe, batched invalidation | Complete guest TLB exception/refill behavior remains |
+| Memory | CPU-owned segments/privilege and TLB translation, physical regions, big-endian RAM/MMIO, coherent physical RAM writes | Wider CPU models and DMA devices remain |
 | Code dispatch | Native AMD64 blocks, writable guest code, byte-change checks and CACHE maintenance | More profiling and architectural validation needed |
 | Machine | ELF/ZIP loading, bundled ROM, NPE-400 geometry, ROMMON variables | Boot bring-up only; persistence parity is not established |
-| Devices | Queued SCN2681 console/aux, EEPROM reads, FPGA startup registers, GT64120 PCI configuration and built-in bridges | DS1620, PCMCIA, DMA, cards and packet delivery remain |
+| Devices | Queued SCN2681 console/aux, EEPROM reads, FPGA startup registers, four DS1620 sensors, GT64120 PCI configuration and built-in bridges | PCMCIA, DMA, cards and packet delivery remain |
 | Time | CP0 Count/Compare and eligible interrupt delivery at block boundaries | Virtual instruction-based timing, not cycle accuracy |
+
+Translation-cache invalidation revalidates executable backing independently of
+compiled-code reuse; byte comparisons still detect writes through aliases.
+Native outcomes distinguish delivered overflow/syscall, TLB refill/invalid/modified
+and address exceptions from host failures and charge only the executed prefix
+and faulting instruction slot. Annulled
+branch-likely delay slots do not advance virtual time. Memory dispatch
+can compile shorter straight-line prefixes for small budgets; a branch and
+its delay slot still require a budget of at least two. Interpreter and native
+execution share exception entry, including EPC/BD, BadVAddr, Context/XContext,
+EntryHi and refill vectors. Physical bus and unsupported-device failures remain
+explicit emulator errors. Privileged-instruction legality is not complete.
+Deterministic device events and IRQ routing remain migration work. A bounded
+independent integer interpreter executes cold blocks and provides differential
+checks.
+
+The execution cache retains 8,192 blocks in four-way sets. Cold integer blocks
+use an independent interpreter before native promotion; hot loops use bounded
+native traces. RAM write versions, opaque-callback epochs and byte checks preserve
+code coherency, including physical aliases. Checked native RAM probes retain
+fault/MMIO fallbacks. Traces stop for instruction budgets, timer deadlines,
+code changes and device-service boundaries.
+
+Before the MMU/exception refactor, seven alternating process starts per core on
+one Linux amd64 host using the
+same IOS 12.4(24)T5 image and CPU 2 measured median launch-to-banner times of
+1.026 s for the new core and 1.111 s for legacy Dynamips (7.7% less time).
+The previous rewrite checkpoint measured 2.89 s. These are host-specific boot
+milestone measurements; CLI readiness and networking remain unvalidated.
+A repeat at the MMU/exception checkpoint measured 1.459 s for this core,
+1.255 s for the preceding tiered core and 1.108 s for legacy (seven starts per
+binary, same image and CPU). This correctness checkpoint currently regresses
+boot performance; the earlier speed lead is not a claim about this revision.
+See `benchmarks/README.md` for reproduction commands.
 
 Unsupported operations report typed failures. Reaching the banner does not
 prove that other images, networking, persistence or teardown are ready.
@@ -118,8 +152,16 @@ Asio console transport. `modules/asmjit.cppm` wraps the emitter dependency.
 CPU and device execution have one owner. Guest loads and stores use cached
 translation and typed cold-path failures. Mapping owners can batch invalidations
 before resuming execution. The architectural TLB is distinct from the host
-translation caches. Memory IR currently calls C++ helpers; inline native RAM
-cache probes remain future work.
+translation caches. The CPU MMU applies RM7000-family segment and privilege
+rules before resolving RAM, ROM or MMIO through physical regions. Checked native
+RAM probes retain helper fallbacks. Host writers must use `write_physical()` for
+canonical RAM so code-page versions, active code monitoring and LL/SC reservations
+stay coherent; raw host writes during execution bypass that contract.
+
+The DS1620 model uses a fixed 22°C ambient, edge-driven serial communication,
+nine-bit thresholds, sticky alarms and retained nonvolatile settings. START
+performs one synchronous conversion; conversion/EEPROM-write latency and
+continuous conversion scheduling remain unmodeled.
 
 Devices use bounded FIFOs and run service hooks between bounded execution
 slices. MMIO callbacks do not perform host I/O. Asio transport stages bytes and
@@ -295,8 +337,9 @@ by existing JIT operations; a boot alone does not prove networking or teardown.
 
 ## Next rewrite steps
 
-1. Implement the DS1620 temperature-control behavior and PCMCIA identification,
-   using the next real IOS stop to choose a bounded piece of work.
+1. Identify the hardware behind the unmapped guest access at `0x10000403`
+   and implement the corresponding bounded device behavior; PCMCIA identity
+   remains incomplete.
 2. Extend missing CPU instructions, guest exceptions and device interrupts with
    focused semantic tests and real-image checks.
 3. Add card and network-device behavior on the existing MMIO/service contracts,
