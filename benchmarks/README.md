@@ -36,3 +36,109 @@ cache probing remain separate work. MMIO callbacks receive the requested byte
 order and exchange numeric values once per access; scalar RAM operations support
 explicit big/little endianness and
 natural alignment for 1, 2, 4, and 8 bytes.
+
+
+## IOS boot timing
+
+Build both standalone binaries in release mode with the AMD64 JIT selected
+(`--dynamips_arch=amd64`), then compare the same extracted C7200 IOS ELF:
+
+```sh
+python3 benchmarks/boot.py build/linux/x86_64/release/dynamips \
+  --core legacy --image /path/to/c7200.image --label legacy --cpu 2
+python3 benchmarks/boot.py build/linux/x86_64/release/c7200-boot \
+  --image /path/to/c7200.image --label new --cpu 2
+```
+
+Choose an available CPU. The harness records three warm-file-cache process
+starts, measures launch to the first IOS banner, and writes console logs and
+JSON under `build/boot-bench`. Both machines use NPE-400 and 256 MiB RAM. The
+legacy console uses TCP because its terminal transport does not emit guest
+output through a redirected terminal. Legacy execution stops at the banner;
+the new core exits at its documented unsupported-device checkpoint. These
+measurements do not compare CLI readiness or networking.
+
+For a separate CPU sample, pass `--runs 1 --profiler /path/to/libprofiler.so`
+to the new-core command and keep release symbols/frame pointers in that
+binary. Dependencies of the profiler must be on the library search path.
+Google perftools may append a PID to the `.prof` filename. Analyze the result
+with `go tool pprof -top -cum /path/to/binary /path/to/profile`. Sampled runs
+include profiler overhead and must not be used for before/after timings.
+
+The JSON also reports peak child RSS (KiB on Linux) across the run group.
+It includes the full process lifetime, including teardown after the banner.
+
+For an alternating comparison (seven starts per core, reversing each pair):
+
+```sh
+python3 benchmarks/boot_compare.py NEW_RELEASE_BINARY LEGACY_RELEASE_BINARY \
+  --image /path/to/c7200.image --cpu 2 --runs 7
+```
+
+This records both medians, individual samples, image hash and console logs.
+A measured checkpoint on Linux amd64 gave 1.026 s new versus 1.111 s legacy.
+Timing includes process startup and ends at the IOS banner, not a working CLI.
+The cold interpreter avoids compiling one-off blocks. Bounded native traces,
+checked RAM probes and successor lookup hints reduce execution overhead;
+every hinted successor still undergoes normal code/mapping validation.
+
+## IOS console readiness
+
+Use the same extracted image and CPU affinity for full startup comparisons.
+This harness requires the actual `Router>` prompt and records launch, banner,
+RETURN, prompt, child CPU time, image hash and console logs under
+`build/cli-bench/`. It uses NPE-400 with 256 MiB RAM and empty card slots.
+
+```sh
+python3 benchmarks/cli.py /path/to/legacy/dynamips --core legacy \
+  --image /path/to/c7200.image --label legacy --cpu 2 --runs 3
+python3 benchmarks/cli.py /path/to/c7200-boot --core boot \
+  --image /path/to/c7200.image --label new --cpu 2 --runs 3
+```
+
+Use `--core cli` for the convenience CLI's `run IMAGE --console PATH` syntax.
+The harness terminates each emulator after the prompt; it does not validate
+networking, saved state or legacy teardown. Run timing separately from profiling
+and compilation. Shared-host scheduling and CPU frequency still affect results.
+
+The full-startup profile found repeated Asio console polls during silent guest
+execution: up to five polls per 64-block CPU slice. Host console input now polls
+at most once per millisecond when idle; pending output bypasses that cadence.
+Guest instruction accounting and the CP0 clock model are unchanged.
+
+Three runs per core on the same host, pinned to CPU 2, using the same IOS
+12.4(24)T5 ELF and NPE-400/256 MiB configuration gave these medians:
+
+| Core | Launch → Router> | Banner → Router> | Child CPU time |
+| --- | ---: | ---: | ---: |
+| Before polling fix | 192.845 s | 186.364 s | 170.647 s |
+| Fixed native CLI | 46.123 s | 44.861 s | 45.187 s |
+| Legacy | 16.076 s | 14.706 s | 13.587 s |
+
+These are full CLI-startup observations, not the earlier launch-to-banner
+benchmark. The shared host had variable load (the baseline launch samples ranged
+from 171.7 to 250.4 s, including concurrent build activity); do not treat the
+76% median wall-time reduction as a precision throughput measurement. The CPU
+samples also fell substantially. Legacy remains faster at this checkpoint.
+A separate sampled run attributed about 52% of baseline CPU time to console
+servicing. A Count-trace experiment passed semantic tests but did not show a
+useful startup CPU-time improvement and is not included in this change.
+
+A later comparison used three rounds, reversing parent/candidate/legacy order
+on alternate rounds, without concurrent builds or CPU sampling. The same image,
+CPU 2 and machine configuration gave these medians:
+
+| Core | Launch → Router> | Banner → Router> | Child CPU time |
+| --- | ---: | ---: | ---: |
+| Parent CLI stack | 44.929 s | 43.618 s | 44.741 s |
+| Dispatch and RAM-version fast paths | 41.104 s | 39.890 s | 40.905 s |
+| Legacy | 14.164 s | 13.073 s | 13.965 s |
+
+The candidate launch samples were 41.208, 41.104 and 41.056 s. This is 8.5%
+less median startup time than the parent, while legacy remains substantially
+faster. Cold interpretation and cache selection are kept out of the dispatch
+hot path; successor hits are inlined. Single-counter code stamps and checked
+single-RAM-page write notifications avoid general reduction/iteration work.
+Cross-page writes, aliases, mapping validation, LL/SC and clock accounting
+retain their existing semantics. The broader noncontiguous-trace experiment
+regressed this workload and is excluded.

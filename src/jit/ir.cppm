@@ -96,7 +96,38 @@ enum class opcode : std::uint8_t {
   store64_left,
   store64_right,
   store64,
+  breakpoint,
 };
+
+// Only pure operations may cross a fault or observable state boundary.
+// Loads include possible MMIO; conservatively treat every other operation as
+// a barrier until its architectural effects are explicitly classified.
+constexpr fn is_pure(opcode op) noexcept -> bool {
+  switch (op) {
+  case opcode::alias:
+  case opcode::constant:
+  case opcode::shift_left64:
+  case opcode::shift_right64:
+  case opcode::shift_right_arithmetic64:
+  case opcode::shift_right_arithmetic32:
+  case opcode::shift_left32_variable:
+  case opcode::shift_right32_variable:
+  case opcode::shift_right_arithmetic32_variable:
+  case opcode::shift_left32:
+  case opcode::shift_right32:
+  case opcode::sign_extend32:
+  case opcode::unsigned_less:
+  case opcode::signed_less:
+  case opcode::subtract_wrap:
+  case opcode::add_wrap:
+  case opcode::bit_and:
+  case opcode::bit_or:
+  case opcode::bit_xor:
+    return true;
+  default:
+    return false;
+  }
+}
 
 constexpr fn produces_value(opcode op) noexcept -> bool {
   return op != opcode::tlb_operation && op != opcode::memory_barrier &&
@@ -104,12 +135,13 @@ constexpr fn produces_value(opcode op) noexcept -> bool {
          op != opcode::multiply32 && op != opcode::divide_signed32 &&
          op != opcode::divide_unsigned32 && op != opcode::exception_return &&
          op != opcode::write_hilo && op != opcode::syscall &&
-         op != opcode::write_cop1_64 && op != opcode::write_cop0_64 &&
-         op != opcode::write_cop0 && op != opcode::write_state &&
-         op != opcode::store16 && op != opcode::store8 &&
-         op != opcode::store64_left && op != opcode::store64_right &&
-         op != opcode::store32_left && op != opcode::store32_right &&
-         op != opcode::store32 && op != opcode::store64;
+         op != opcode::breakpoint && op != opcode::write_cop1_64 &&
+         op != opcode::write_cop0_64 && op != opcode::write_cop0 &&
+         op != opcode::write_state && op != opcode::store16 &&
+         op != opcode::store8 && op != opcode::store64_left &&
+         op != opcode::store64_right && op != opcode::store32_left &&
+         op != opcode::store32_right && op != opcode::store32 &&
+         op != opcode::store64;
 }
 
 enum class binary_kind : std::uint8_t {
@@ -185,6 +217,10 @@ struct node {
 
   static constexpr fn syscall(std::uint32_t source) noexcept -> node {
     return {{.immediate = 0}, source, {}, opcode::syscall, width::bits64};
+  }
+
+  static constexpr fn breakpoint(std::uint32_t source) noexcept -> node {
+    return {{.immediate = 0}, source, {}, opcode::breakpoint, width::bits64};
   }
 
   static constexpr fn constant(std::uint64_t bits, std::uint32_t source,
@@ -798,6 +834,7 @@ private:
     case opcode::memory_barrier:
     case opcode::exception_return:
     case opcode::syscall:
+    case opcode::breakpoint:
       if (current.type != width::bits64)
         return fail(error_code::invalid_type);
       break;
@@ -838,7 +875,9 @@ private:
           current.slot.index != 6 && current.slot.index != 10 &&
           current.slot.index != 7 && current.slot.index != 8 &&
           current.slot.index != 14 && current.slot.index != 30 &&
-          current.slot.index != 28 && current.slot.index != 29)
+          current.slot.index != 28 && current.slot.index != 29 &&
+          current.slot.index != 4 && current.slot.index != 20 &&
+          current.slot.index != 22)
         return fail(error_code::invalid_slot);
       if (current.type != width::bits64)
         return fail(error_code::invalid_type);
@@ -980,6 +1019,9 @@ private:
         break;
       case opcode::syscall:
         out = std::format_to(out, "  raise.syscall");
+        break;
+      case opcode::breakpoint:
+        out = std::format_to(out, "  raise.breakpoint");
         break;
       case opcode::constant:
         out = std::format_to(out, "  %v{} = const i{} {}", i, bits,
