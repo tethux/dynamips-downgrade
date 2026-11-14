@@ -23,10 +23,13 @@ export module machine.core;
 
 import host_memory;
 import machine.firmware;
+import machine.interrupts;
 import jit.memory;
 import jit.devices;
 import jit.mips64;
 import jit.tlb;
+import jit.mmu;
+import jit.physical;
 import jit.dispatch;
 import jit.memory_dispatch;
 import jit.execution;
@@ -66,6 +69,7 @@ struct window_id {
 struct attachment {
   window_id window;
   jit::devices::descriptor device;
+  std::optional<std::uint8_t> interrupt{};
 };
 enum class setup_issue {
   invalid_definition,
@@ -95,6 +99,13 @@ public:
   instance(const instance &) = delete;
   fn operator=(const instance &) -> instance & = delete;
 
+  ~instance() {
+    for (std::size_t i = 0; i < irq_count_; i++) {
+      const let &connection = irq_connections_[i];
+      connection.connect_interrupt(connection.context, {});
+    }
+  }
+
   [[nodiscard]] static fn create(definition model, const firmware::image &rom,
                                   const firmware::image *ios = nullptr,
                                   std::span<const attachment> attachments = {},
@@ -117,8 +128,8 @@ public:
       if (range.size == 0 || range.size % mem::page_size ||
           range.base.value % mem::page_size ||
           range.base.value < model.ram_bytes ||
-          range.base.value >= direct_size ||
-          range.size > direct_size - range.base.value ||
+          range.base.value >= jit::mmu::physical_size ||
+          range.size > jit::mmu::physical_size - range.base.value ||
           (range.base.value < model.rom.base.value + model.rom.size &&
            model.rom.base.value < range.base.value + range.size))
         return std::unexpected(setup_error{setup_issue::invalid_definition, i});
@@ -134,7 +145,7 @@ public:
       return std::unexpected(setup_error{setup_issue::invalid_firmware});
     try {
       let result = std::unique_ptr<instance>{new instance{model}};
-      let ram = host::allocate_aligned(mem::page_size, model.ram_bytes);
+      let ram = host::map_zeroed(model.ram_bytes);
       let backing = host::allocate_aligned(
           mem::page_size, static_cast<std::size_t>(model.rom.size));
       if (!ram)
@@ -143,7 +154,6 @@ public:
         return std::unexpected(setup_error{backing.error()});
       result->ram_ = std::move(*ram);
       result->rom_ = std::move(*backing);
-      std::memset(result->ram_.get(), 0, model.ram_bytes);
       std::memset(result->rom_.get(), 0,
                   static_cast<std::size_t>(model.rom.size));
       const let rom_loaded = result->load(rom, false);
@@ -162,7 +172,9 @@ public:
       for (std::size_t i = 0; i < attachments.size(); i++) {
         const let &entry = attachments[i];
         if (entry.window.value >= model.windows.size() ||
-            (attached & (1u << entry.window.value)))
+            (attached & (1u << entry.window.value)) ||
+            (entry.interrupt && (!entry.device.lifecycle.connect_interrupt ||
+                                 !entry.device.lifecycle.context)))
           return std::unexpected(
               setup_error{setup_issue::invalid_attachment, i});
         attached |= 1u << entry.window.value;
@@ -170,6 +182,15 @@ public:
         const let registered = result->devices_.add(range, entry.device);
         if (!registered)
           return std::unexpected(setup_error{registered.error(), i});
+        if (entry.interrupt) {
+          const let line = result->interrupts_.connect(*entry.interrupt);
+          if (!line)
+            return std::unexpected(
+                setup_error{setup_issue::invalid_attachment, i});
+          const let hooks = entry.device.lifecycle;
+          hooks.connect_interrupt(hooks.context, *line);
+          result->irq_connections_[result->irq_count_++] = hooks;
+        }
         pages += static_cast<std::size_t>(range.size / mem::page_size);
       }
       let space =
@@ -179,45 +200,79 @@ public:
       if (!space)
         return std::unexpected(setup_error{space.error()});
       result->memory_ = std::move(*space);
-      for (const std::uint64_t alias : std::array{cached_base, uncached_base}) {
-        for (std::size_t offset = 0; offset < model.ram_bytes;
-             offset += mem::page_size) {
-          const let mapped = result->memory_->map_ram(
-              {alias + offset}, {offset},
-              mode == boot_mode::run
-                  ? mem::permission::read | mem::permission::write |
-                        mem::permission::execute
-                  : mem::permission::read | mem::permission::write);
-          if (!mapped)
-            return std::unexpected(setup_error{mapped.error(), offset});
-        }
-        for (std::size_t offset = 0; offset < model.rom.size;
-             offset += mem::page_size) {
-          const let mapped = result->memory_->map_rom(
-              {alias + model.rom.base.value + offset},
-              {model.rom.base.value + offset},
-              std::as_writable_bytes(
-                  std::span{result->rom_.get() + offset, mem::page_size}));
-          if (!mapped)
-            return std::unexpected(setup_error{mapped.error(), offset});
-        }
-        for (const let &entry : attachments) {
-          const let range = model.windows[entry.window.value].range;
-          for (std::uint64_t offset = 0; offset < range.size;
+      if (mode != boot_mode::run)
+        for (const std::uint64_t alias :
+             std::array{cached_base, uncached_base}) {
+          for (std::size_t offset = 0; offset < model.ram_bytes;
                offset += mem::page_size) {
-            const let mapped = result->memory_->map_device(
-                {alias + range.base.value + offset},
-                {range.base.value + offset}, result->devices_.endpoint(),
-                mem::permission::read | mem::permission::write);
+            const let mapped = result->memory_->map_ram(
+                {alias + offset}, {offset},
+                mode == boot_mode::run
+                    ? mem::permission::read | mem::permission::write |
+                          mem::permission::execute
+                    : mem::permission::read | mem::permission::write);
             if (!mapped)
-              return std::unexpected(
-                  setup_error{mapped.error(), entry.window.value});
+              return std::unexpected(setup_error{mapped.error(), offset});
+          }
+          for (std::size_t offset = 0; offset < model.rom.size;
+               offset += mem::page_size) {
+            const let mapped = result->memory_->map_rom(
+                {alias + model.rom.base.value + offset},
+                {model.rom.base.value + offset},
+                std::as_writable_bytes(
+                    std::span{result->rom_.get() + offset, mem::page_size}));
+            if (!mapped)
+              return std::unexpected(setup_error{mapped.error(), offset});
+          }
+          for (const let &entry : attachments) {
+            const let range = model.windows[entry.window.value].range;
+            if (range.base.value >= direct_size)
+              continue;
+            for (std::uint64_t offset = 0; offset < range.size;
+                 offset += mem::page_size) {
+              const let mapped = result->memory_->map_device(
+                  {alias + range.base.value + offset},
+                  {range.base.value + offset}, result->devices_.endpoint(),
+                  mem::permission::read | mem::permission::write);
+              if (!mapped)
+                return std::unexpected(
+                    setup_error{mapped.error(), entry.window.value});
+            }
           }
         }
+      std::array<jit::physical::region, jit::physical::bus::capacity> regions;
+      std::size_t region_count = 0;
+      regions[region_count++] = {{0},
+                                 model.ram_bytes,
+                                 std::as_writable_bytes(std::span{
+                                     result->ram_.get(), model.ram_bytes}),
+                                 nullptr,
+                                 mem::permission::read |
+                                     mem::permission::write |
+                                     mem::permission::execute};
+      regions[region_count++] = {
+          model.rom.base, model.rom.size,
+          std::as_writable_bytes(std::span{
+              result->rom_.get(), static_cast<std::size_t>(model.rom.size)}),
+          nullptr, mem::permission::read | mem::permission::execute};
+      for (const let &entry : attachments) {
+        const let range = model.windows[entry.window.value].range;
+        regions[region_count++] = {range.base,
+                                   range.size,
+                                   {},
+                                   &result->devices_.endpoint(),
+                                   mem::permission::read |
+                                       mem::permission::write};
       }
+      let bus_mapping =
+          jit::physical::bus::create(std::span{regions}.first(region_count));
+      if (!bus_mapping)
+        return std::unexpected(setup_error{setup_issue::invalid_definition,
+                                           bus_mapping.error().index});
+      result->physical_.emplace(std::move(*bus_mapping));
       result->memory_->set_translation(result.get(), &instance::translate);
       if (mode == boot_mode::run) {
-        let dispatch = jit::memory_dispatcher::create(*result->memory_);
+        let dispatch = jit::memory_dispatcher::create(*result->memory_, 32);
         if (!dispatch)
           return std::unexpected(setup_error{dispatch.error()});
         result->dispatch_ = std::move(*dispatch);
@@ -262,8 +317,9 @@ public:
   // stopped.
   fn reset() noexcept -> void {
     memory_->clear_reservation();
-    if (!state_.cop0.translations.empty())
+    if (!state_.cop0.translations.empty() || (state_.cop0.registers[12] & 0xff))
       memory_->invalidate();
+    interrupts_.reset();
     state_ = {};
     state_.pc = model_.cpu.reset;
     state_.registers[29] = model_.cpu.boot_stack.value;
@@ -293,55 +349,40 @@ public:
 
 private:
   definition model_;
-  host::owned_bytes ram_, rom_;
+  host::mapped_bytes ram_;
+  host::owned_bytes rom_;
   jit::devices::bus devices_;
+  std::optional<jit::physical::bus> physical_;
   std::unique_ptr<mem::address_space> memory_;
   std::vector<jit::mips64::instruction_word> boot_;
   std::variant<std::unique_ptr<jit::dispatcher>,
                std::unique_ptr<jit::memory_dispatcher>>
       dispatch_;
   jit::mips64::state state_{};
+  interrupt_router interrupts_;
+  std::array<jit::devices::hooks, jit::devices::bus::capacity>
+      irq_connections_{};
+  std::size_t irq_count_ = 0;
   std::optional<std::uint64_t> ios_entry_;
 
-  explicit instance(definition model) noexcept : model_(model) {}
+  explicit instance(definition model) noexcept
+      : model_(model), interrupts_(state_.cop0) {}
 
   static fn translate(void *context, mem::virtual_address address,
                        mem::access_kind access, mem::access_size size) noexcept
       -> std::expected<mem::translated_page, mem::fault> {
     let &self = *static_cast<instance *>(context);
-    const let physical = self.state_.cop0.translations.translate(
-        address, static_cast<std::uint8_t>(self.state_.cop0.registers[10]),
-        access);
+    const let physical =
+        jit::mmu::translate(self.state_.cop0, address, access, size);
     if (!physical)
-      return std::unexpected(
-          mem::fault{address,
-                     physical.error() == jit::tlb::error::modified
-                         ? mem::fault_reason::permission
-                         : mem::fault_reason::unmapped,
-                     access, size});
-    const let page = physical->value & ~std::uint64_t{mem::page_size - 1};
-    if (page < self.model_.ram_bytes)
-      return mem::translated_page{
-          *physical, reinterpret_cast<std::byte *>(self.ram_.get()) + page,
-          nullptr};
-    if (page >= self.model_.rom.base.value &&
-        page - self.model_.rom.base.value < self.model_.rom.size) {
-      if (access == mem::access_kind::write)
-        return std::unexpected(
-            mem::fault{address, mem::fault_reason::permission, access, size});
-      return mem::translated_page{
-          *physical,
-          reinterpret_cast<std::byte *>(self.rom_.get()) +
-              (page - self.model_.rom.base.value),
-          nullptr};
+      return std::unexpected(physical.error());
+    let resolved = self.physical_->resolve(*physical, access, size);
+    if (!resolved) {
+      let fault = resolved.error();
+      fault.address = address;
+      return std::unexpected(fault);
     }
-    for (const let &window : self.model_.windows)
-      if (physical->value >= window.range.base.value &&
-          physical->value - window.range.base.value < window.range.size)
-        return mem::translated_page{*physical, nullptr,
-                                    &self.devices_.endpoint()};
-    return std::unexpected(
-        mem::fault{address, mem::fault_reason::bus, access, size});
+    return *resolved;
   }
 
   fn load(const firmware::image &image, bool ram_only) noexcept
