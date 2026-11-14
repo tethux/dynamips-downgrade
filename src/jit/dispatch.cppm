@@ -22,6 +22,7 @@ import jit.ir;
 import jit.mips64;
 import jit.amd64;
 import jit.memory;
+import jit.exceptions;
 
 export namespace jit {
 enum class dispatch_error_code {
@@ -46,7 +47,13 @@ struct dispatch_error {
   std::optional<std::uint64_t> branch_pc{};
   amd64::error_code execution = amd64::error_code::memory_fault;
 };
-enum class stop_reason { completed, budget_exhausted, yielded, handoff };
+enum class stop_reason {
+  completed,
+  budget_exhausted,
+  yielded,
+  handoff,
+  guest_exception
+};
 
 struct dispatch_result {
   stop_reason reason;
@@ -64,7 +71,8 @@ struct native_block {
 compile_native_block(std::span<const mips64::instruction_word> words,
                      mips64::guest_address start,
                      const amd64::compiler &compiler,
-                     std::span<std::byte> scratch, bool dump_ir) noexcept
+                     std::span<std::byte> scratch, bool dump_ir,
+                     bool guard_writes = false) noexcept
     -> std::expected<native_block, dispatch_error> {
   std::pmr::monotonic_buffer_resource arena{scratch.data(), scratch.size(),
                                             std::pmr::null_memory_resource()};
@@ -92,11 +100,111 @@ compile_native_block(std::span<const mips64::instruction_word> words,
           dispatch_error{dispatch_error_code::diagnostic, start.value});
     }
   }
-  let code = compiler.compile(*translated, arena);
+  let code = compiler.compile(*translated, arena, guard_writes);
   if (!code)
     return std::unexpected(dispatch_error{
         dispatch_error_code::compilation, start.value, {}, {}, code.error()});
   return native_block{std::move(*code), translated->info().instruction_count};
+}
+
+[[nodiscard]] fn
+compile_native_trace(std::span<const mips64::instruction_word> words,
+                     mips64::guest_address start,
+                     const amd64::compiler &compiler,
+                     std::span<std::byte> scratch) noexcept
+    -> std::expected<std::optional<native_block>, dispatch_error> {
+  std::pmr::monotonic_buffer_resource arena{scratch.data(), scratch.size(),
+                                            std::pmr::null_memory_resource()};
+  if (words.empty() || words.size() > 65)
+    return std::unexpected(
+        dispatch_error{dispatch_error_code::invalid_image, start.value});
+  try {
+    std::size_t loop_end = 0;
+    for (std::size_t i = 0; i + 1 < words.size(); i++) {
+      if (!mips64::is_branch(words[i]))
+        continue;
+      const let offset = static_cast<std::int16_t>(words[i].bits & 0xffff);
+      if (offset < 0 && static_cast<std::int64_t>(i) + 1 + offset >= 0) {
+        loop_end = i + 2;
+        break;
+      }
+    }
+    if (!loop_end)
+      return std::optional<native_block>{};
+    words = words.first(loop_end);
+    for (const let word : words)
+      if (word.bits >> 26 == 0x10)
+        return std::optional<native_block>{};
+    std::array<bool, 66> boundary{};
+    boundary[0] = true;
+    for (std::size_t i = 0; i < words.size(); i++) {
+      const let word = words[i];
+      std::optional<std::uint64_t> target;
+      if (mips64::is_branch(word))
+        target = start.value + i * 4 + 4 +
+                 (static_cast<std::uint64_t>(static_cast<std::int64_t>(
+                      static_cast<std::int16_t>(word.bits & 0xffff)))
+                  << 2);
+      else if (word.bits >> 26 == 2 || word.bits >> 26 == 3)
+        target = mips64::jump_target(word, {start.value + i * 4}).value;
+      if (target && *target >= start.value &&
+          (*target - start.value) / 4 < words.size()) {
+        const let index = (*target - start.value) / 4;
+        if (!index || !mips64::has_delay_slot(words[index - 1]))
+          boundary[index] = true;
+      }
+    }
+    std::pmr::vector<ir::block> blocks{&arena};
+    blocks.reserve(32);
+    std::size_t count = 0;
+    while (count < words.size()) {
+      let end = count + 1;
+      while (end < words.size() && !boundary[end])
+        end++;
+      let translated = mips64::translate(words.subspan(count, end - count),
+                                          {start.value + count * 4}, arena);
+      if (!translated) {
+        let prefix = translated.error().instruction_index;
+        if (prefix && mips64::has_delay_slot(words[count + prefix - 1]))
+          prefix--;
+        if (!prefix)
+          break;
+        translated = mips64::translate(words.subspan(count, prefix),
+                                       {start.value + count * 4}, arena);
+      }
+      if (!translated)
+        return std::unexpected(dispatch_error{dispatch_error_code::translation,
+                                              start.value + count * 4,
+                                              {},
+                                              translated.error()});
+      if (!ir::optimize(*translated, ir::fold_constants,
+                        ir::simplify_identities, ir::fold_constants))
+        return std::unexpected(dispatch_error{dispatch_error_code::translation,
+                                              start.value + count * 4});
+      count += translated->info().instruction_count;
+      blocks.push_back(std::move(*translated));
+    }
+    bool loop = false;
+    for (const let &block : blocks) {
+      const let target = block.branch() ? std::optional{block.branch()->target}
+                         : block.jump() ? std::optional{block.jump()->target}
+                                        : std::nullopt;
+      if (target && *target <= block.info().start_pc)
+        for (const let &candidate : blocks)
+          loop = loop || candidate.info().start_pc == *target;
+    }
+    if (!loop)
+      return std::optional<native_block>{};
+    let code = compiler.compile_trace(blocks, arena);
+    if (!code)
+      return std::unexpected(dispatch_error{
+          dispatch_error_code::compilation, start.value, {}, {}, code.error()});
+    return std::optional<native_block>{std::in_place, std::move(*code),
+                                       static_cast<std::uint32_t>(count)};
+  } catch (const std::bad_alloc &) {
+    return std::unexpected(
+        dispatch_error{dispatch_error_code::out_of_memory, start.value});
+  }
 }
 
 // One owner, immutable instruction image. RAM and the address space outlive
@@ -169,8 +277,11 @@ public:
         return result;
       }
       if (state.cop0.interrupt_pending()) {
-        memory_.clear_reservation();
+        memory_.invalidate();
         state.pc = state.cop0.exception(0, state.pc, false);
+        if (state.pc.value < start_.value || state.pc.value >= end)
+          return std::unexpected(
+              dispatch_error{dispatch_error_code::invalid_pc, state.pc.value});
       }
       if (generation_ != memory_.mapping_generation()) {
         for (let &entry : cache_)
@@ -193,9 +304,21 @@ public:
         result.reason = stop_reason::budget_exhausted;
         return result;
       }
-      const let executed = entry.code->run(
+      const let executed = entry.code->execute(
           state.registers, memory_, &state.cop0, &state.hilo, &state.cop1);
       if (!executed) {
+        state.cop0.advance_cycles(executed.error().completed_instructions);
+        if (executed.error().code == amd64::error_code::memory_fault)
+          if (const let issue = exceptions::from_memory(
+                  executed.error().access, executed.error().pc,
+                  executed.error().branch_pc)) {
+            exceptions::enter(state, memory_, *issue);
+            state.cop0.advance_cycles(1);
+            result.instructions += executed.error().instructions + 1;
+            result.blocks += executed.error().blocks;
+            result.reason = stop_reason::guest_exception;
+            return result;
+          }
         state.pc.value = executed.error().pc;
         return std::unexpected(dispatch_error{
             executed.error().code == amd64::error_code::memory_fault
@@ -208,10 +331,15 @@ public:
             executed.error().branch_pc,
             executed.error().code});
       }
-      state.cop0.advance_cycles(entry.instructions);
-      state.pc.value = *executed;
-      result.instructions += entry.instructions;
-      result.blocks++;
+      state.cop0.advance_cycles(executed->instructions -
+                                executed->accounted_instructions);
+      state.pc.value = executed->next_pc;
+      result.instructions += executed->instructions;
+      result.blocks += executed->blocks;
+      if (executed->reason == amd64::exit_reason::guest_exception) {
+        result.reason = stop_reason::guest_exception;
+        return result;
+      }
     }
   }
 
