@@ -109,6 +109,10 @@ Median banner-to-prompt times were 186.4 s, 44.9 s and 14.7 s respectively.
 This reduces the observed startup delay by about 76%; legacy remains faster.
 The shared host had variable load, so these are checkpoint observations, not a
 general throughput claim. Guest instruction accounting and Count timing are unchanged.
+A subsequent three-round comparison, reversing core order each round, measured
+44.929 s for the parent revision, 41.104 s with dispatch/code-version fast paths,
+and 14.164 s for legacy. This is an 8.5% reduction from the parent at the same
+prompt checkpoint; the goal of beating legacy remains unmet.
 See `benchmarks/README.md` for reproduction commands.
 
 Unsupported operations report typed failures. Reaching the banner does not

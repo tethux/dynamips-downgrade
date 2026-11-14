@@ -135,6 +135,8 @@ struct backing_stamp {
   std::span<const std::uint64_t> versions{};
 
   [[nodiscard]] inline fn value() const noexcept -> std::uint64_t {
+    if (versions.size() == 1)
+      return versions.front();
     std::uint64_t result = 0;
     for (const let version : versions)
       result += version;
@@ -623,12 +625,18 @@ private:
     const let base = reinterpret_cast<std::uintptr_t>(ram_.data());
     const let limit =
         reinterpret_cast<std::uintptr_t>(ram_.data() + ram_.size());
-    if (begin < base || end > limit)
-      external_generation_++;
-    if (std::max(begin, base) < std::min(end, limit))
-      for (let page = (std::max(begin, base) - base) / page_size;
-           page <= (std::min(end, limit) - 1 - base) / page_size; page++)
-        write_versions_[page]++;
+    const let offset = begin - base;
+    if (size && offset < ram_.size() && size <= ram_.size() - offset &&
+        size <= page_size - (offset & (page_size - 1))) {
+      write_versions_[offset / page_size]++;
+    } else {
+      if (begin < base || end > limit)
+        external_generation_++;
+      if (std::max(begin, base) < std::min(end, limit))
+        for (let page = (std::max(begin, base) - base) / page_size;
+             page <= (std::min(end, limit) - 1 - base) / page_size; page++)
+          write_versions_[page]++;
+    }
     if (!monitor_ || monitor_->modified)
       return;
     for (const let range : monitor_->ranges) {

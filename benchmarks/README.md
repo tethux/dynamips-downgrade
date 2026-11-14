@@ -123,3 +123,22 @@ samples also fell substantially. Legacy remains faster at this checkpoint.
 A separate sampled run attributed about 52% of baseline CPU time to console
 servicing. A Count-trace experiment passed semantic tests but did not show a
 useful startup CPU-time improvement and is not included in this change.
+
+A later comparison used three rounds, reversing parent/candidate/legacy order
+on alternate rounds, without concurrent builds or CPU sampling. The same image,
+CPU 2 and machine configuration gave these medians:
+
+| Core | Launch → Router> | Banner → Router> | Child CPU time |
+| --- | ---: | ---: | ---: |
+| Parent CLI stack | 44.929 s | 43.618 s | 44.741 s |
+| Dispatch and RAM-version fast paths | 41.104 s | 39.890 s | 40.905 s |
+| Legacy | 14.164 s | 13.073 s | 13.965 s |
+
+The candidate launch samples were 41.208, 41.104 and 41.056 s. This is 8.5%
+less median startup time than the parent, while legacy remains substantially
+faster. Cold interpretation and cache selection are kept out of the dispatch
+hot path; successor hits are inlined. Single-counter code stamps and checked
+single-RAM-page write notifications avoid general reduction/iteration work.
+Cross-page writes, aliases, mapping validation, LL/SC and clock accounting
+retain their existing semantics. The broader noncontiguous-trace experiment
+regressed this workload and is excluded.

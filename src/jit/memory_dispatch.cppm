@@ -260,7 +260,8 @@ private:
       : cold_threshold_(cold_threshold), memory_(memory),
         compiler_(std::move(compiler)) {}
 
-  fn interpret(const cached_block &entry, mips64::state &state) noexcept
+  [[gnu::cold, gnu::noinline]] fn interpret(const cached_block &entry,
+                                             mips64::state &state) noexcept
       -> std::expected<amd64::execution_result, amd64::execution_error> {
     std::array<mips64::instruction_word, 65> words;
     for (std::size_t i = 0; i < entry.instructions; i++) {
@@ -284,7 +285,7 @@ private:
                                    result->accounted_instructions};
   }
 
-  fn select(std::uint64_t pc) noexcept -> cached_block & {
+  [[gnu::noinline]] fn select(std::uint64_t pc) noexcept -> cached_block & {
     const let index = ((pc >> 2) ^ (pc >> 14) ^ (pc >> 26)) & (cache_sets - 1);
     let &set = cache_[index];
     for (let &entry : set.entries)
@@ -298,7 +299,8 @@ private:
     return entry;
   }
 
-  fn follow(cached_block &entry, std::uint64_t pc) noexcept
+  [[gnu::always_inline]] inline fn follow(cached_block &entry,
+                                           std::uint64_t pc) noexcept
       -> cached_block * {
     for (const let successor : entry.successors)
       if (successor && successor->pc == pc &&

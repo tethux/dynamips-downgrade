@@ -68,6 +68,49 @@ fn executable_write_proofs() -> void {
               first.value() == before + 1,
           "successful conditional writes through an alias update executable "
           "versions");
+  const let before_first = first.value();
+  const let before_second = second.value();
+  const std::array payload{std::byte{1}, std::byte{2}, std::byte{3},
+                           std::byte{4}};
+  const std::array boundary_code{
+      std::span<const std::byte>{backing}.subspan(mem::page_size, 4)};
+  mem::write_monitor boundary_monitor{boundary_code};
+  {
+    const let scope = (*memory)->monitor_writes(&boundary_monitor);
+    require(
+        (*memory)->load_linked<std::uint32_t>({0x1000}).has_value() &&
+            (*memory)
+                ->write_physical({mem::page_size - 2}, payload)
+                .has_value() &&
+            boundary_monitor.modified && first.value() == before_first + 1 &&
+            second.value() == before_second + 1 &&
+            (*memory)->store_conditional<std::uint32_t>({0x1000}, 10) == false,
+        "cross-page physical writes update both versions, notify code and "
+        "clear reservations");
+  }
+  const let unchanged = spanning.value();
+  require((*memory)->load_linked<std::uint32_t>({0x1000}).has_value() &&
+              (*memory)->write_physical({0}, {}).has_value() &&
+              spanning.value() == unchanged &&
+              (*memory)->store_conditional<std::uint32_t>({0x1000}, 11) ==
+                  true &&
+              mem::backing_stamp{}.value() == 0,
+          "empty physical writes preserve versions and reservations");
+  std::array<std::byte, mem::page_size + 4> partial_backing{};
+  const let partial_span = std::span{partial_backing}.subspan(1);
+  let partial = mem::address_space::create(partial_span, 0);
+  require(partial.has_value(),
+          "create RAM with an unaligned base and partial page");
+  const let tail = (*partial)->stamp(partial_span.last(1));
+  require((*partial)
+                  ->write_physical({partial_span.size() - 1},
+                                   std::span{payload}.first(1))
+                  .has_value() &&
+              tail.value() == 1 &&
+              !(*partial)->write_physical({partial_span.size()},
+                                          std::span{payload}.first(1)) &&
+              tail.value() == 1,
+          "partial final RAM page tracks valid writes and rejects overruns");
 }
 
 struct device_state {
