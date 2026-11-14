@@ -9,7 +9,6 @@ module;
 #include <new>
 #include <limits>
 #include <span>
-#include <charconv>
 #include <chrono>
 #include <memory>
 #include <cstdint>

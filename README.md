@@ -419,3 +419,30 @@ rules cannot be disabled through the configuration.
 
 The published Go tool still reads `.repolint.toml`. The architecture checker
 needs a repolint release before its rules can join the published-tool CI gate.
+
+## Native CI coverage
+
+The Native rewrite workflow runs debug and release test jobs, ASan/UBSan, and
+module-aware clangd checks. It builds the new CPU/interpreter, MMU/exceptions,
+physical memory, devices, host helpers, machine, CLI and terminal consumers.
+The Go policies workflow remains separate and continues validating legacy bindings.
+Failures retain native logs and test diagnostics; superseded runs are cancelled.
+
+The same runner can be used locally, sequentially:
+
+```sh
+bash tools/ci/native-core.sh check debug
+bash tools/ci/native-core.sh check release
+bash tools/ci/native-core.sh sanitize
+bash tools/ci/native-core.sh clangd
+```
+
+CI uses the existing Clang 19/GCC 14 toolchain. Local validation of this change
+used Clang 21; the CI jobs establish Clang 19 compatibility. CI does not download
+Cisco images: it tests the bundled ROM boundary and generated instruction-level
+fixtures. Real IOS prompt/command checks remain a separate local-image test.
+
+Strict `bash tools/ci/native-core.sh tidy` retains warnings as errors. The existing
+Asio allocator diagnostic through unchanged `tests/console.cpp` still needs a
+fix before that full task can become a required CI gate; it is not suppressed.
+The changed frontend/transport sources pass the focused checks.

@@ -133,12 +133,12 @@ public:
       let result = std::unique_ptr<console_transport>{new console_transport};
       std::error_code error;
       result->terminal_mode_ = true;
-      result->input_.assign(read_fd->get(), error);
+      error = result->input_.assign(read_fd->get(), error);
       if (error)
         return std::unexpected(error);
       static_cast<void>(read_fd->release());
       result->input_flags_ = read_flags;
-      result->output_.assign(write_fd->get(), error);
+      error = result->output_.assign(write_fd->get(), error);
       if (error)
         return std::unexpected(error);
       static_cast<void>(write_fd->release());
