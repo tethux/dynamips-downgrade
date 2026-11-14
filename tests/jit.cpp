@@ -768,11 +768,12 @@ fn cop0_writes() -> void {
     const let absent = native->run(state, **memory);
     require(!absent && absent.error().code == amd64::error_code::cop0_required,
             "CP0 instructions reject missing state");
-    require(
-        native->run(state, **memory, &cop0).has_value() &&
-            cop0.registers[slot] ==
-                (slot == 7 || slot == 15 || slot == 16 ? 0x1234u : 0x87654321u),
-        "MTC0 stores low 32 bits and preserves read-only registers");
+    require(native->run(state, **memory, &cop0).has_value() &&
+                cop0.registers[slot] == (slot == 7 || slot == 15 || slot == 16
+                                             ? 0x1234u
+                                         : slot == 13 ? 0x8301u
+                                                      : 0x87654321u),
+            "MTC0 stores low 32 bits and preserves read-only registers");
     require(state[2] == static_cast<std::uint64_t>(std::int64_t{
                             static_cast<std::int32_t>(cop0.registers[slot])}),
             "MFC0 sign extends the low word into a guest register");
@@ -826,6 +827,7 @@ fn cop0_full_width() -> void {
             "DMFC0 preserves all bits while MFC0 sign extends the low word");
     const let expected = slot == 7 || slot == 8 || slot == 15 || slot == 16
                              ? 0xfedcba9881234567ULL
+                         : slot == 13               ? 0xfedcba9881234767ULL
                          : slot == 14 || slot == 30 ? state[1]
                                                     : 0x87654321ULL;
     require(
@@ -1150,42 +1152,57 @@ fn branch_likely() -> void {
   require(compiler.has_value(), "create likely branch compiler");
   for (unsigned opcode : {0x14u, 0x15u}) {
     for (unsigned different = 0; different < 2; different++) {
-      for (unsigned slot = 0; slot < 3; slot++) {
-        alignas(std::max_align_t) std::array<std::byte, 8192> storage;
-        std::pmr::monotonic_buffer_resource arena{
-            storage.data(), storage.size(), std::pmr::null_memory_resource()};
-        const std::array words{
-            mips::instruction_word{0x34030009},
-            mips::instruction_word{(opcode << 26) | 0x00220003u},
-            mips::instruction_word{slot == 0 ? 0x34030007u
-                                   : slot == 1 ? 0xdc830000u
-                                               : 0x34010007u}};
-        let block = mips::translate(words, {0x1000}, arena);
-        require(block && block->branch()->annul_not_taken,
-                "translate likely branch");
-        require(ir::optimize(*block, ir::fold_constants).has_value(),
-                "optimize likely branch");
-        let native = compiler->compile(*block, arena);
-        require(native.has_value(), "compile likely branch");
-        std::array<std::byte, mem::page_size> ram{};
-        let memory = mem::address_space::create(ram, 1);
-        require(memory.has_value(), "create likely branch memory");
-        std::array<std::uint64_t, 32> state{};
-        state[1] = 5;
-        state[2] = 5 + different;
-        state[4] = 0x9000;
-        const let result = native->run(state, **memory);
-        const bool taken = opcode == 0x14 ? different == 0 : different != 0;
-        if (slot == 1 && taken)
-          require(!result && result.error().pc == 0x1008 &&
-                      result.error().branch_pc == 0x1004 && state[3] == 9,
-                  "taken likely slot faults with precise state");
-        else
-          require(result && *result == (taken ? 0x1014u : 0x100cu) &&
-                      state[3] == (slot == 0 && taken ? 7u : 9u) &&
-                      state[1] == (slot == 2 && taken ? 7u : 5u),
-                  "likely branch annuls register writes and faults only when "
-                  "not taken");
+      for (unsigned slot = 0; slot < 4; slot++) {
+        for (unsigned immediate : {1u, 3u}) {
+          alignas(std::max_align_t) std::array<std::byte, 8192> storage;
+          std::pmr::monotonic_buffer_resource arena{
+              storage.data(), storage.size(), std::pmr::null_memory_resource()};
+          const std::array words{
+              mips::instruction_word{0x34030009},
+              mips::instruction_word{(opcode << 26) | 0x00220000u | immediate},
+              mips::instruction_word{slot == 0   ? 0x34030007u
+                                     : slot == 1 ? 0xdc830000u
+                                     : slot == 2 ? 0x34010007u
+                                                 : 0u}};
+          let block = mips::translate(words, {0x1000}, arena);
+          require(block && block->branch()->annul_not_taken,
+                  "translate likely branch");
+          require(ir::optimize(*block, ir::fold_constants).has_value(),
+                  "optimize likely branch");
+          let native = compiler->compile(*block, arena);
+          require(native.has_value(), "compile likely branch");
+          std::array<std::byte, mem::page_size> ram{};
+          let memory = mem::address_space::create(ram, 1);
+          require(memory.has_value(), "create likely branch memory");
+          std::array<std::uint64_t, 32> state{};
+          state[1] = 5;
+          state[2] = 5 + different;
+          state[4] = 0x9000;
+          const let initial = state;
+          const let result = native->execute(state, **memory);
+          const bool taken = opcode == 0x14 ? different == 0 : different != 0;
+          if (slot == 1 && taken)
+            require(!result && result.error().pc == 0x1008 &&
+                        result.error().branch_pc == 0x1004 && state[3] == 9,
+                    "taken likely slot faults with precise state");
+          else
+            require(result &&
+                        result->next_pc ==
+                            (taken ? 0x1008u + immediate * 4 : 0x100cu) &&
+                        result->instructions == (taken ? 3u : 2u) &&
+                        state[3] == (slot == 0 && taken ? 7u : 9u) &&
+                        state[1] == (slot == 2 && taken ? 7u : 5u),
+                    "likely branch annuls register writes and faults only when "
+                    "not taken");
+          if (slot != 1) {
+            let compatibility_state = initial;
+            const let compatibility = native->run(compatibility_state);
+            require(compatibility && *compatibility == result->next_pc &&
+                        compatibility_state == state,
+                    "register-only likely branches support a null execution "
+                    "context");
+          }
+        }
       }
     }
   }
@@ -1545,78 +1562,135 @@ template <bool Word> fn merged_loads() -> void {
       memory &&
           (*memory)->map_ram({0x1000}, {0}, mem::permission::read).has_value(),
       "map merged-load source");
-  for (const bool right : {false, true}) {
-    alignas(std::max_align_t) std::array<std::byte, 8192> storage;
+  for (const bool fused : {false, true}) {
+    for (const bool right : {false, true}) {
+      alignas(std::max_align_t) std::array<std::byte, 64 * 1024> storage;
+      std::pmr::monotonic_buffer_resource arena{
+          storage.data(), storage.size(), std::pmr::null_memory_resource()};
+      const std::array words{
+          mips::instruction_word{Word ? (right ? 0x98220000u : 0x88220000u)
+                                      : (right ? 0x6c220000u : 0x68220000u)}};
+      let block = mips::translate(words, {0x8000}, arena);
+      require(block.has_value(), "translate word/doubleword merge loads");
+      let native =
+          fused ? compiler->compile_trace(std::span{&*block, 1}, arena, false)
+                : compiler->compile(*block, arena);
+      require(native.has_value(), "compile word/doubleword merge loads");
+      for (unsigned offset = 0; offset < size; offset++) {
+        std::array<std::uint64_t, 32> registers{};
+        registers[1] = 0x1000 + offset;
+        registers[2] = 0x8899aabbccddeeffULL;
+        std::array<unsigned, 8> expected_bytes{0x88, 0x99, 0xaa, 0xbb,
+                                               0xcc, 0xdd, 0xee, 0xff};
+        let expected = std::span{expected_bytes}.last(size);
+        if (right) {
+          for (unsigned i = 0; i <= offset; i++)
+            expected[size - 1 - offset + i] = i;
+        } else {
+          for (unsigned i = offset; i < size; i++)
+            expected[i - offset] = i;
+        }
+        std::uint64_t value = 0;
+        for (const let byte : expected)
+          value = (value << 8) | byte;
+        if constexpr (Word)
+          value = static_cast<std::uint64_t>(std::int64_t{
+              std::bit_cast<std::int32_t>(static_cast<std::uint32_t>(value))});
+        require(native->run(registers, **memory).has_value() &&
+                    registers[2] == value,
+                "word/doubleword merge loads merge every byte offset and "
+                "preserve untouched register "
+                "bytes");
+      }
+      std::array<std::uint64_t, 32> registers{};
+      registers[1] = 0x3003;
+      registers[2] = 99;
+      const let fault = native->run(registers, **memory);
+      require(!fault && fault.error().pc == 0x8000 &&
+                  fault.error().access.address.value == 0x3003 &&
+                  registers[2] == 99,
+              "merged-load fault retains original address and destination");
+    }
+    alignas(std::max_align_t) std::array<std::byte, 64 * 1024> storage;
     std::pmr::monotonic_buffer_resource arena{storage.data(), storage.size(),
                                               std::pmr::null_memory_resource()};
-    const std::array words{
-        mips::instruction_word{Word ? (right ? 0x98220000u : 0x88220000u)
-                                    : (right ? 0x6c220000u : 0x68220000u)}};
-    let block = mips::translate(words, {0x8000}, arena);
-    require(block.has_value(), "translate word/doubleword merge loads");
-    let native = compiler->compile(*block, arena);
-    require(native.has_value(), "compile word/doubleword merge loads");
+    if (fused)
+      require((*memory)->unmap({0x2000}).has_value(),
+              "reset second source page before fused load checks");
+    const std::array pair{
+        mips::instruction_word{Word ? 0x88220000u : 0x68220000u},
+        mips::instruction_word{Word ? 0x98220003u : 0x6c220007u}};
+    let block = mips::translate(pair, {0x8000}, arena);
+    require(block.has_value(), "translate paired unaligned load");
+    let native =
+        fused ? compiler->compile_trace(std::span{&*block, 1}, arena, false)
+              : compiler->compile(*block, arena);
+    require(native.has_value(), "compile paired unaligned load");
     for (unsigned offset = 0; offset < size; offset++) {
-      std::array<std::uint64_t, 32> registers{};
-      registers[1] = 0x1000 + offset;
-      registers[2] = 0x8899aabbccddeeffULL;
-      std::array<unsigned, 8> expected_bytes{0x88, 0x99, 0xaa, 0xbb,
-                                             0xcc, 0xdd, 0xee, 0xff};
-      let expected = std::span{expected_bytes}.last(size);
-      if (right) {
-        for (unsigned i = 0; i <= offset; i++)
-          expected[size - 1 - offset + i] = i;
-      } else {
-        for (unsigned i = offset; i < size; i++)
-          expected[i - offset] = i;
-      }
-      std::uint64_t value = 0;
-      for (const let byte : expected)
-        value = (value << 8) | byte;
+      std::array<std::uint64_t, 32> paired{};
+      paired[1] = 0x1100 + offset;
+      paired[2] = 0x8899aabbccddeeffULL;
+      require((*memory)->load<std::uint8_t>({paired[1]}).has_value(),
+              "warm paired-load RAM cache");
+      std::uint64_t expected = 0;
+      for (unsigned byte = 0; byte < size; byte++)
+        expected = (expected << 8) | ((offset + byte) & 255);
       if constexpr (Word)
-        value = static_cast<std::uint64_t>(std::int64_t{
-            std::bit_cast<std::int32_t>(static_cast<std::uint32_t>(value))});
-      require(native->run(registers, **memory).has_value() &&
-                  registers[2] == value,
-              "word/doubleword merge loads merge every byte offset and "
-              "preserve untouched register "
-              "bytes");
+        expected = static_cast<std::uint64_t>(std::int64_t{
+            std::bit_cast<std::int32_t>(static_cast<std::uint32_t>(expected))});
+      require(native->run(paired, **memory).has_value() &&
+                  paired[2] == expected,
+              "paired cached RAM loads preserve every unaligned byte offset");
     }
     std::array<std::uint64_t, 32> registers{};
-    registers[1] = 0x3003;
-    registers[2] = 99;
+    registers[1] = 0x1ffd;
     const let fault = native->run(registers, **memory);
-    require(!fault && fault.error().pc == 0x8000 &&
-                fault.error().access.address.value == 0x3003 &&
-                registers[2] == 99,
-            "merged-load fault retains original address and destination");
+    require(!fault && fault.error().pc == 0x8004 &&
+                registers[2] ==
+                    (Word ? 0xfffffffffdfeff00ULL : 0xfdfeff0000000000ULL),
+            "faulting second merge preserves completed first merge");
+
+    struct observation {
+      std::uint64_t *reg;
+      std::uint64_t expected;
+      std::uint64_t payload;
+      unsigned reads = 0;
+      bool partial = false;
+    } observed{&registers[2],
+               Word ? 0xfffffffffdfeff00ULL : 0xfdfeff0000000000ULL,
+               Word ? 0x00010203ULL : 0x0001020304050607ULL};
+
+    mem::device endpoint{
+        &observed,
+        [](void *context, mem::device_access) noexcept
+            -> std::expected<std::uint64_t, mem::device_error> {
+          let &snapshot = *static_cast<observation *>(context);
+          snapshot.reads++;
+          snapshot.partial = *snapshot.reg == snapshot.expected;
+          return snapshot.payload;
+        },
+        nullptr};
+    require(
+        (*memory)
+            ->map_device({0x2000}, {0x10000}, endpoint, mem::permission::read)
+            .has_value(),
+        "map second merged load to MMIO");
+    registers[2] = 0;
+    require(native->run(registers, **memory).has_value() &&
+                observed.reads == 1 && observed.partial,
+            "second-word MMIO observes the completed first partial load "
+            "exactly once");
+    require((*memory)->unmap({0x2000}).has_value(), "unmap merged-load MMIO");
+    require((*memory)
+                ->map_ram({0x2000}, {mem::page_size}, mem::permission::read)
+                .has_value(),
+            "map second source page");
+    require(
+        native->run(registers, **memory).has_value() &&
+            registers[2] ==
+                (Word ? 0xfffffffffdfeff00ULL : 0xfdfeff0001020304ULL),
+        "word/doubleword merge loads pair joins bytes across a page boundary");
   }
-  alignas(std::max_align_t) std::array<std::byte, 16384> storage;
-  std::pmr::monotonic_buffer_resource arena{storage.data(), storage.size(),
-                                            std::pmr::null_memory_resource()};
-  const std::array pair{
-      mips::instruction_word{Word ? 0x88220000u : 0x68220000u},
-      mips::instruction_word{Word ? 0x98220003u : 0x6c220007u}};
-  let block = mips::translate(pair, {0x8000}, arena);
-  require(block.has_value(), "translate paired unaligned load");
-  let native = compiler->compile(*block, arena);
-  require(native.has_value(), "compile paired unaligned load");
-  std::array<std::uint64_t, 32> registers{};
-  registers[1] = 0x1ffd;
-  const let fault = native->run(registers, **memory);
-  require(!fault && fault.error().pc == 0x8004 &&
-              registers[2] ==
-                  (Word ? 0xfffffffffdfeff00ULL : 0xfdfeff0000000000ULL),
-          "faulting second merge preserves completed first merge");
-  require((*memory)
-              ->map_ram({0x2000}, {mem::page_size}, mem::permission::read)
-              .has_value(),
-          "map second source page");
-  require(
-      native->run(registers, **memory).has_value() &&
-          registers[2] ==
-              (Word ? 0xfffffffffdfeff00ULL : 0xfdfeff0001020304ULL),
-      "word/doubleword merge loads pair joins bytes across a page boundary");
 }
 
 template <bool Doubleword> fn merged_stores() -> void {
@@ -2114,10 +2188,19 @@ fn checked_addition() -> void {
           state[2] = 99;
           mips::cop0_state cop0;
           cop0.registers[13] = 0x8000;
-          const let result = native->run(state, **memory, &cop0);
-          require(result && *result == (overflow ? 0xffffffff80000180ULL
-                                                 : block->next_pc()),
+          const let result = native->execute(state, **memory, &cop0);
+          require(result && result->next_pc == (overflow ? 0xffffffff80000180ULL
+                                                         : block->next_pc()),
                   "ADDI returns an overflow vector or the ordinary next PC");
+          require(result->reason == (overflow
+                                         ? amd64::exit_reason::guest_exception
+                                         : amd64::exit_reason::completed) &&
+                      result->instructions ==
+                          (overflow ? (slot == 1 ? 3u : 2u)
+                                    : block->info().instruction_count -
+                                          (slot == 2 ? 1u : 0u)),
+                  "native outcome counts the precise prefix, including "
+                  "delay-slot traps");
           require(state[0] == 0 &&
                       state[2] == (overflow || slot == 2 || destination == 0
                                        ? 99ULL
@@ -2246,6 +2329,626 @@ fn syscall_exceptions() -> void {
   }
 }
 
+fn performance_control() -> void {
+  namespace mem = jit::memory;
+  mips::cop0_state direct{};
+  require(
+      mips::cop0_state::performance_control_supported(0x1000) &&
+          mips::cop0_state::performance_control_supported(0x31f) &&
+          !mips::cop0_state::performance_control_supported(0x1400),
+      "only disabled RM7000 performance counter configuration is supported");
+  direct.write(22, 0x1000);
+  require(direct.registers[22] == 0, "PerfControl bit twelve is reserved zero");
+  direct.write(22, 0xfffffbff);
+  require(
+      direct.registers[22] == 0x31f,
+      "PerfControl retains disabled mode/event fields and masks reserved bits");
+  let compiler = amd64::compiler::create();
+  require(compiler.has_value(), "create PerfControl compiler");
+  for (const bool optimized : {false, true}) {
+    for (const bool wide : {false, true}) {
+      for (const std::uint32_t control : {0x1000u, 0x131fu, 0x400u, 0x171fu}) {
+        alignas(std::max_align_t) std::array<std::byte, 16384> storage;
+        std::pmr::monotonic_buffer_resource arena{
+            storage.data(), storage.size(), std::pmr::null_memory_resource()};
+        const std::array words{
+            mips::instruction_word{0x24630001},
+            mips::instruction_word{(wide ? 0x40a10000u : 0x40810000u) |
+                                   (22u << 11)},
+            mips::instruction_word{(wide ? 0x40220000u : 0x40020000u) |
+                                   (22u << 11)},
+            mips::instruction_word{0x34040007}};
+        let block = mips::translate(words, {0x1000}, arena);
+        require(block.has_value(), "translate PerfControl transfers");
+        if (optimized)
+          require(
+              ir::optimize(*block, ir::fold_constants, ir::simplify_identities)
+                  .has_value(),
+              "optimize PerfControl transfers");
+        let native = compiler->compile(*block, arena);
+        require(native.has_value(), "compile PerfControl transfers");
+        std::array<std::byte, mem::page_size> ram{};
+        let memory = mem::address_space::create(ram, 0);
+        require(memory.has_value(), "create PerfControl memory");
+        std::array<std::uint64_t, 32> state{};
+        state[1] = 0xabcdef0000000000ULL | control;
+        state[2] = state[4] = 99;
+        mips::cop0_state cop0{};
+        cop0.registers[22] = 0x113;
+        const let result = native->execute(state, **memory, &cop0);
+        if (control & 0x400) {
+          require(!result &&
+                      result.error().code ==
+                          amd64::error_code::unsupported_performance_counter &&
+                      result.error().pc == 0x1004 &&
+                      result.error().instructions == 1 &&
+                      result.error().completed_instructions == 0 &&
+                      cop0.registers[22] == 0x113 && state[3] == 1 &&
+                      state[2] == 99 && state[4] == 99 &&
+                      cop0.registers[9] == 0 && cop0.half_cycle,
+                  "enabled counters fail with a typed precise prefix before "
+                  "mutation");
+        } else {
+          const let expected = control & 0x31f;
+          require(
+              result && result->instructions == 4 &&
+                  result->accounted_instructions == 1 &&
+                  result->next_pc == 0x1010 && cop0.registers[22] == expected &&
+                  state[2] == expected && state[3] == 1 && state[4] == 7,
+              "MFC0/MTC0 and wide forms round-trip disabled PerfControl state");
+        }
+      }
+    }
+  }
+  alignas(std::max_align_t) std::array<std::byte, 16384> storage;
+  std::pmr::monotonic_buffer_resource arena{storage.data(), storage.size(),
+                                            std::pmr::null_memory_resource()};
+  const std::array invalid{mips::instruction_word{0x4003b001}};
+  require(!mips::translate(invalid, {0x1000}, arena),
+          "PerfControl support does not alias unsupported CP0 selectors");
+  for (const std::uint16_t slot : {std::uint16_t{4}, std::uint16_t{20}}) {
+    arena.release();
+    const std::array words{
+        mips::instruction_word{0x40a10000u | (std::uint32_t{slot} << 11)},
+        mips::instruction_word{0x40220000u | (std::uint32_t{slot} << 11)}};
+    let block = mips::translate(words, {0x2000}, arena);
+    require(block.has_value(),
+            "Context registers pass decoder and IR validation");
+    let native = compiler->compile(*block, arena);
+    require(native.has_value(), "compile Context register transfers");
+    std::array<std::uint64_t, 32> state{};
+    state[1] = 0xfedcba9876543210ULL;
+    mips::cop0_state cop0{};
+    cop0.registers[slot] = 0x123456789abcdef0ULL;
+    const std::uint64_t preserve = slot == 4 ? 0x7fffffULL : 0x1ffffffffULL;
+    const let expected =
+        (cop0.registers[slot] & preserve) | (state[1] & ~preserve);
+    std::array<std::byte, mem::page_size> ram{};
+    let memory = mem::address_space::create(ram, 0);
+    require(memory.has_value(), "create Context transfer memory");
+    require(native->execute(state, **memory, &cop0).has_value() &&
+                state[2] == expected,
+            "Context writes preserve hardware BadVPN fields and retain full "
+            "PTE base");
+  }
+}
+
+fn breakpoint_exceptions() -> void {
+  namespace mem = jit::memory;
+  constexpr let rwx =
+      mem::permission::read | mem::permission::write | mem::permission::execute;
+  let compiler = amd64::compiler::create();
+  require(compiler.has_value(), "create breakpoint compiler");
+  require(!ir::is_pure(ir::opcode::breakpoint) &&
+              !ir::produces_value(ir::opcode::breakpoint),
+          "BREAK is an observable fault barrier without a value result");
+  constexpr std::uint64_t pc = 0xffffffff80001000ULL;
+  for (const bool optimized : {false, true}) {
+    for (const bool bev : {false, true}) {
+      for (unsigned scenario = 0; scenario < 6; scenario++) {
+        const bool standalone = scenario == 0;
+        const bool delay = scenario >= 2 && scenario <= 4;
+        const bool annulled = scenario == 3;
+        const bool nested = scenario == 5;
+        alignas(std::max_align_t) std::array<std::byte, 64 * 1024> storage;
+        std::pmr::monotonic_buffer_resource arena{
+            storage.data(), storage.size(), std::pmr::null_memory_resource()};
+        const std::array words{
+            mips::instruction_word{standalone ? 0x0007000du : 0x34030009u},
+            mips::instruction_word{
+                delay ? (scenario == 2 ? 0x10000001u : 0x52200001u)
+                      : 0x03ffffcdu},
+            mips::instruction_word{0x0007000du},
+            mips::instruction_word{0x34040007u}};
+        let block = mips::translate(words, {pc}, arena);
+        require(block && block->info().instruction_count == (standalone ? 1u
+                                                             : delay    ? 3u
+                                                                        : 2u),
+                "BREAK accepts its code field and terminates translation");
+        if (optimized)
+          require(
+              ir::optimize(*block, ir::fold_constants, ir::simplify_identities)
+                  .has_value(),
+              "optimize guarded BREAK");
+        let native = compiler->compile(*block, arena);
+        require(native.has_value(), "compile guarded BREAK");
+        std::array<std::byte, mem::page_size> ram{};
+        let memory = mem::address_space::create(ram, 1);
+        require(memory && (*memory)->map_ram({0x1000}, {0}, rwx).has_value() &&
+                    (*memory)->load_linked<std::uint32_t>({0x1000}).has_value(),
+                "create linked reservation before BREAK");
+        std::array<std::uint64_t, 32> state{};
+        state[17] = annulled ? 1u : 0u;
+        mips::cop0_state cop0;
+        cop0.registers[12] = (bev ? 1u << 22 : 0) | (nested ? 2u : 0);
+        cop0.registers[13] = 0x80008000;
+        cop0.registers[14] = 0xffffffff81234560ULL;
+        const let result = native->execute(state, **memory, &cop0);
+        require(result.has_value(), "execute guarded BREAK");
+        require(result->instructions == (standalone           ? 1u
+                                         : delay && !annulled ? 3u
+                                                              : 2u) &&
+                    state[3] == (standalone ? 0u : 9u) && state[4] == 0,
+                "BREAK reports its exact executed prefix without later writes");
+        if (annulled) {
+          require(result->reason == amd64::exit_reason::completed &&
+                      result->next_pc == pc + 12 && !(cop0.registers[12] & 2) &&
+                      cop0.registers[13] == 0x80008000 &&
+                      cop0.registers[14] == 0xffffffff81234560ULL,
+                  "untaken BEQL annuls a guarded BREAK entirely");
+        } else {
+          require(result->reason == amd64::exit_reason::guest_exception &&
+                      result->next_pc == (bev ? 0xffffffffbfc00380ULL
+                                              : 0xffffffff80000180ULL) &&
+                      (cop0.registers[12] & 2) &&
+                      (cop0.registers[13] & 0x7c) == 9u * 4 &&
+                      (cop0.registers[13] & 0x8000) &&
+                      ((cop0.registers[13] >> 31) & 1) ==
+                          (delay || nested ? 1u : 0u) &&
+                      cop0.registers[14] == (nested ? 0xffffffff81234560ULL
+                                             : standalone ? pc
+                                                          : pc + 4),
+                  "BREAK enters exception nine with precise EPC/BD and nested "
+                  "state");
+        }
+        require((*memory)->store_conditional<std::uint32_t>({0x1000}, 1) ==
+                    annulled,
+                "only an executed BREAK clears the linked reservation");
+      }
+    }
+  }
+}
+
+fn conflicting_code_blocks() -> void {
+  namespace mem = jit::memory;
+  std::array<std::byte, mem::page_size> ram{};
+  let memory = mem::address_space::create(ram, 5);
+  constexpr let rwx =
+      mem::permission::read | mem::permission::write | mem::permission::execute;
+  // Distinct PCs that collided in the direct-mapped native cache.
+  constexpr std::array<std::uint64_t, 5> pcs{0x1000, 0x5004, 0x9008, 0xd00c,
+                                             0x11010};
+  require(memory.has_value(), "create conflicting code memory");
+  for (std::size_t i = 0; i < pcs.size(); i++) {
+    require(
+        (*memory)
+                ->map_ram({pcs[i] & ~std::uint64_t{mem::page_size - 1}}, {0},
+                          rwx)
+                .has_value() &&
+            (*memory)
+                ->store<std::uint32_t>(
+                    {pcs[i]}, 0x34010000u | static_cast<std::uint32_t>(i + 1))
+                .has_value(),
+        "map and populate conflicting executable aliases");
+  }
+  let dispatch = jit::memory_dispatcher::create(**memory);
+  require(dispatch.has_value(), "create conflicting code dispatcher");
+  mips::state state{};
+  for (unsigned pass = 0; pass < 3; pass++)
+    for (std::size_t i = 0; i < 4; i++) {
+      state.pc = {pcs[i]};
+      const let result = (*dispatch)->run_slice(state, 1);
+      require(result && result->compiled == (pass == 0 ? 1u : 0u) &&
+                  state.registers[1] == i + 1,
+              "colliding hot blocks coexist and reuse their native code");
+    }
+  state.pc = {pcs[4]};
+  const let overflow = (*dispatch)->run_slice(state, 1);
+  require(overflow && overflow->compiled == 1 && state.registers[1] == 5,
+          "full cache set replaces a block and executes the new code");
+  state.pc = {pcs[0]};
+  const let replaced = (*dispatch)->run_slice(state, 1);
+  require(replaced && replaced->compiled == 1 && state.registers[1] == 1,
+          "evicted code recompiles safely");
+  require((*memory)->store<std::uint32_t>({0x1008}, 0x34010009).has_value(),
+          "modify retained code through another physical alias");
+  state.pc = {pcs[2]};
+  const let changed = (*dispatch)->run_slice(state, 1);
+  require(changed && changed->compiled == 1 && state.registers[1] == 9,
+          "associative lookup still validates modified instruction bytes");
+  state.pc = {pcs[3]};
+  const let neighbor = (*dispatch)->run_slice(state, 1);
+  require(neighbor && neighbor->compiled == 0 && state.registers[1] == 4,
+          "replacing changed code preserves neighboring cached blocks");
+}
+
+fn trace_branch_limits() -> void {
+  namespace mem = jit::memory;
+  std::array<std::byte, mem::page_size> ram{};
+  let memory = mem::address_space::create(ram, 0);
+  let compiler = amd64::compiler::create();
+  require(memory && compiler, "create branch-limit execution");
+  alignas(std::max_align_t) std::array<std::byte, 64 * 1024> scratch;
+  const std::array code{std::span<const std::byte>{ram}.first(20)};
+  constexpr std::array<mips::instruction_word, 3> constant{
+      {{0x2421ffff}, {0x1420fffe}, {0}}};
+  let trace =
+      jit::compile_native_trace(constant, {0x1000}, *compiler, scratch);
+  require(trace && trace->has_value(), "compile constant-operand trace branch");
+  for (const std::uint64_t initial : {std::uint64_t{1}, std::uint64_t{2}}) {
+    mips::state state{};
+    state.registers[1] = initial;
+    const let result =
+        (**trace).code.execute(state.registers, **memory, &state.cop0,
+                               &state.hilo, &state.cop1, code, 1000, 1, 1);
+    require(result && result->instructions == 3 && result->blocks == 1 &&
+                result->next_pc == (initial == 1 ? 0x100cu : 0x1000u),
+            "trace stop paths initialize constant branch operands before "
+            "testing limits");
+  }
+  constexpr std::array<mips::instruction_word, 5> likely{
+      {{0x24210001}, {0x50220001}, {0}, {0x1424fffc}, {0}}};
+  trace = jit::compile_native_trace(likely, {0x1000}, *compiler, scratch);
+  require(trace && trace->has_value(), "compile same-target likely trace");
+  for (const bool taken_once : {false, true}) {
+    mips::state state{};
+    state.registers[2] = taken_once ? 1 : 0;
+    state.registers[4] = 1000;
+    const let result =
+        (**trace).code.execute(state.registers, **memory, &state.cop0,
+                               &state.hilo, &state.cop1, code, 1000, 64);
+    require(result && result->blocks == 64 &&
+                result->instructions == (taken_once ? 129u : 128u) &&
+                result->next_pc == 0x1000 && state.registers[1] == 32,
+            "likely NOP slots account annulment when target equals fallthrough "
+            "inside a trace");
+  }
+}
+
+fn host_code_mutations() -> void {
+  namespace mem = jit::memory;
+  for (const std::uint16_t threshold : {std::uint16_t{0}, std::uint16_t{32}}) {
+    std::array<std::byte, mem::page_size> ram{};
+    let memory = mem::address_space::create(ram, 2);
+    const let rwx = mem::permission::read | mem::permission::write |
+                    mem::permission::execute;
+    require(memory && (*memory)->map_ram({0x1000}, {0}, rwx).has_value(),
+            "map host-mutable code");
+    constexpr std::array words{0x8c620000u, 0x08000420u, 0u};
+    for (std::size_t i = 0; i < words.size(); i++)
+      require((*memory)
+                  ->store<std::uint32_t>({0x1000 + i * 4}, words[i])
+                  .has_value(),
+              "install mutation dispatcher program");
+    require((*memory)->store<std::uint32_t>({0x1080}, 0x34010001).has_value(),
+            "install host-mutable target");
+    let dispatcher = jit::memory_dispatcher::create(**memory, threshold);
+    require(dispatcher.has_value(), "create host-mutation dispatcher");
+    mips::state state{};
+    state.pc = {0x1080};
+    require((*dispatcher)->run_slice(state, 1).has_value() &&
+                state.registers[1] == 1,
+            "warm mutable target");
+    ram[0x83] = std::byte{7};
+    state.pc = {0x1080};
+    require((*dispatcher)->run_slice(state, 1).has_value() &&
+                state.registers[1] == 7,
+            "raw host changes between slices cannot bypass byte validation");
+    mem::device endpoint{
+        ram.data(),
+        [](void *context, mem::device_access) noexcept
+            -> std::expected<std::uint64_t, mem::device_error> {
+          static_cast<std::byte *>(context)[0x83] = std::byte{9};
+          return 11;
+        },
+        nullptr};
+    require(
+        (*memory)
+            ->map_device({0x4000}, {0x10000}, endpoint, mem::permission::read)
+            .has_value(),
+        "map code-mutating device callback");
+    state.pc = {0x1000};
+    state.registers[3] = 0x4000;
+    const let result = (*dispatcher)->run_slice(state, 4, 3);
+    require(result && result->instructions == 4 && state.registers[1] == 9 &&
+                state.registers[2] == 11,
+            "opaque callbacks invalidate already-warm code even when raw "
+            "writes bypass RAM versions");
+  }
+}
+
+fn observed_partial_merge() -> void {
+  namespace mem = jit::memory;
+  std::array<std::byte, mem::page_size> ram{};
+  for (std::size_t i = 0; i < ram.size(); i++)
+    ram[i] = static_cast<std::byte>(i & 255);
+  let memory = mem::address_space::create(ram, 1);
+  require(memory &&
+              (*memory)
+                  ->map_ram({0x1000}, {0}, mem::permission::read)
+                  .has_value() &&
+              (*memory)->load<std::uint32_t>({0x1000}).has_value(),
+          "warm observed merged-load backing");
+  alignas(std::max_align_t) std::array<std::byte, 64 * 1024> storage;
+  std::pmr::monotonic_buffer_resource arena{storage.data(), storage.size(),
+                                            std::pmr::null_memory_resource()};
+  let block = ir::block::create({0x8000, 2, 32}, 12, arena);
+  require(block.has_value(), "create observed merge IR");
+  const let append = [&](ir::node node) {
+    let value = block->append(node);
+    require(value.has_value(), "append observed merge IR");
+    return *value;
+  };
+  const let address = append(ir::node::read({1}, 0));
+  const let previous = append(ir::node::read({2}, 0));
+  const let first = append(ir::node::load_merge32(address, previous, false, 0));
+  append(ir::node::write({2}, first, 0));
+  const let offset = append(ir::node::constant(3, 1));
+  const let last_address =
+      append(ir::node::binary(ir::binary_kind::add_wrap, address, offset, 1));
+  const let last = append(ir::node::load_merge32(last_address, first, true, 1));
+  const let observed = append(ir::node::read({2}, 1));
+  append(ir::node::write({3}, observed, 1));
+  append(ir::node::write({2}, last, 1));
+  let compiler = amd64::compiler::create();
+  require(compiler.has_value(), "create observed merge compiler");
+  let native = compiler->compile_trace(std::span{&*block, 1}, arena, false);
+  require(native.has_value(), "compile observed merge IR");
+  std::array<std::uint64_t, 32> registers{};
+  registers[1] = 0x1001;
+  registers[2] = 0x8899aabbccddeeffULL;
+  require(native->run(registers, **memory).has_value() &&
+              registers[2] == 0x01020304 && registers[3] == 0x010203ff,
+          "paired-load optimization preserves explicit observations of the "
+          "first partial value");
+}
+
+fn cop0_prefix_clock() -> void {
+  namespace mem = jit::memory;
+  std::array<std::byte, mem::page_size> ram{};
+  let memory = mem::address_space::create(ram, 1);
+  const let rwx =
+      mem::permission::read | mem::permission::write | mem::permission::execute;
+  require(memory && (*memory)->map_ram({0x1000}, {0}, rwx).has_value(),
+          "map CP0 prefix program");
+  for (const bool write : {false, true}) {
+    const std::array words{0x24210001u, 0x24420001u,
+                           write ? 0x40834800u : 0x40034800u, 0x70000000u};
+    for (std::size_t i = 0; i < words.size(); i++)
+      require((*memory)
+                  ->store<std::uint32_t>({0x1000 + i * 4}, words[i])
+                  .has_value(),
+              "install CP0 prefix program");
+    let dispatcher = jit::memory_dispatcher::create(**memory);
+    require(dispatcher.has_value(), "create CP0 prefix dispatcher");
+    mips::state state{};
+    state.pc = {0x1000};
+    state.registers[3] = 7;
+    const let result = (*dispatcher)->run_slice(state, 20, 1);
+    require(result && result->instructions == 3 && state.cop0.half_cycle &&
+                state.cop0.registers[9] == (write ? 7u : 1u) &&
+                state.registers[3] == (write ? 7u : 1u),
+            "CP0 Count reads and writes account preceding instructions before "
+            "accessing the timer");
+  }
+}
+
+fn trace_exception_positions() -> void {
+  namespace mem = jit::memory;
+  std::array<std::byte, mem::page_size> ram{};
+  let memory = mem::address_space::create(ram, 1);
+  require(
+      memory &&
+          (*memory)->map_ram({0x1000}, {0}, mem::permission::read).has_value(),
+      "map trace exception backing");
+  let compiler = amd64::compiler::create();
+  require(compiler.has_value(), "create exception trace compiler");
+  alignas(std::max_align_t) std::array<std::byte, 64 * 1024> scratch;
+  const std::array code{std::span<const std::byte>{ram}.first(16)};
+  for (const unsigned position : {0u, 1u, 3u}) {
+    for (const bool overflow : {false, true}) {
+      std::array<mips::instruction_word, 4> words{
+          {{0x24210001}, {0x24420001}, {0x1423fffd}, {0}}};
+      words[position].bits = overflow ? 0x20e40001u : 0x8d280000u;
+      let trace =
+          jit::compile_native_trace(words, {0x1000}, *compiler, scratch);
+      require(trace && trace->has_value(),
+              "compile exception at a trace position");
+      mips::state state{};
+      state.registers[3] = 100;
+      state.registers[7] = 0x7fffffff;
+      state.registers[8] = 99;
+      state.registers[9] = 0x9000;
+      const let result =
+          (**trace).code.execute(state.registers, **memory, &state.cop0,
+                                 &state.hilo, &state.cop1, code, 1000, 64);
+      if (overflow) {
+        require(result &&
+                    result->reason == amd64::exit_reason::guest_exception &&
+                    result->instructions == position + 1 &&
+                    state.cop0.registers[14] ==
+                        (position == 3 ? 0x1008u : 0x1000 + position * 4) &&
+                    static_cast<bool>(state.cop0.registers[13] & 0x80000000u) ==
+                        (position == 3),
+                "trace overflow reports exact slots, EPC and delay-slot BD");
+      } else {
+        require(
+            !result && result.error().pc == 0x1000 + position * 4 &&
+                result.error().completed_instructions == position &&
+                result.error().branch_pc ==
+                    (position == 3 ? std::optional<std::uint64_t>{0x1008}
+                                   : std::nullopt) &&
+                state.registers[8] == 99,
+            "trace memory faults retain precise prefix and delay-slot context");
+      }
+    }
+  }
+  constexpr std::array<mips::instruction_word, 3> likely{
+      {{0x24210001}, {0x5022fffe}, {0x8d280000}}};
+  let trace = jit::compile_native_trace(likely, {0x1000}, *compiler, scratch);
+  require(trace && trace->has_value(),
+          "compile likely trace with faulting slot");
+  mips::state state{};
+  state.registers[9] = 0x9000;
+  const let annulled =
+      (**trace).code.execute(state.registers, **memory, &state.cop0,
+                             &state.hilo, &state.cop1, code, 1000, 64);
+  require(annulled && annulled->instructions == 2 &&
+              annulled->next_pc == 0x100c,
+          "annulled likely trace slots neither fault nor consume virtual time");
+}
+
+fn memory_effect_clock() -> void {
+  namespace mem = jit::memory;
+
+  struct observed_clock {
+    mips::cop0_state *clock;
+    bool observed = false;
+  };
+
+  for (const std::uint16_t threshold : {std::uint16_t{0}, std::uint16_t{4}}) {
+    std::array<std::byte, mem::page_size> ram{};
+    let memory = mem::address_space::create(ram, 2);
+    const let rwx = mem::permission::read | mem::permission::write |
+                    mem::permission::execute;
+    mips::state state{};
+    observed_clock observed{&state.cop0};
+    mem::device endpoint{
+        &observed,
+        [](void *, mem::device_access) noexcept
+            -> std::expected<std::uint64_t, mem::device_error> {
+          return std::unexpected(mem::device_error::unsupported_size);
+        },
+        [](void *context, mem::device_access, std::uint64_t value) noexcept
+            -> std::expected<void, mem::device_error> {
+          let &snapshot = *static_cast<observed_clock *>(context);
+          snapshot.observed = snapshot.clock->registers[9] == 1 &&
+                              snapshot.clock->half_cycle && value == 1;
+          return {};
+        }};
+    require(memory && (*memory)->map_ram({0x1000}, {0}, rwx).has_value() &&
+                (*memory)
+                    ->map_device({0x4000}, {0x10000}, endpoint,
+                                 mem::permission::write)
+                    .has_value(),
+            "map clock-observing MMIO");
+    constexpr std::array words{0x24210001u, 0xac610000u, 0x24420001u,
+                               0xac820000u, 0x70000000u};
+    for (std::size_t i = 0; i < words.size(); i++)
+      require((*memory)
+                  ->store<std::uint32_t>({0x1000 + i * 4}, words[i])
+                  .has_value(),
+              "install MMIO clock program");
+    state.pc = {0x1000};
+    state.registers[3] = 0x1200;
+    state.registers[4] = 0x4000;
+    let dispatcher = jit::memory_dispatcher::create(**memory, threshold);
+    require(dispatcher.has_value(), "create clock dispatcher");
+    const let result = (*dispatcher)->run_slice(state, 20, 1);
+    require(result && result->instructions == 4 && observed.observed &&
+                state.cop0.registers[9] == 2 && !state.cop0.half_cycle,
+            "MMIO observes completed instruction time exactly once in either "
+            "execution tier");
+  }
+}
+
+fn bounded_native_traces() -> void {
+  namespace mem = jit::memory;
+  std::array<std::byte, mem::page_size> ram{};
+  let memory = mem::address_space::create(ram, 2);
+  const let rwx =
+      mem::permission::read | mem::permission::write | mem::permission::execute;
+  require(memory && (*memory)->map_ram({0x1000}, {0}, rwx).has_value() &&
+              (*memory)->map_ram({0x3000}, {0}, rwx).has_value(),
+          "map trace code and physical alias");
+  let compiler = amd64::compiler::create();
+  require(compiler.has_value(), "create trace compiler");
+  alignas(std::max_align_t) std::array<std::byte, 64 * 1024> scratch;
+  // Two basic blocks, with a conditional exit and a backward edge.
+  constexpr std::array<mips::instruction_word, 5> words{
+      {{0x24210001}, {0x10220003}, {0x24630001}, {0x1424fffc}, {0x24a50001}}};
+  for (std::size_t i = 0; i < words.size(); i++)
+    require((*memory)
+                ->store<std::uint32_t>({0x1000 + i * 4}, words[i].bits)
+                .has_value(),
+            "install native trace");
+  let native = jit::compile_native_trace(words, {0x1000}, *compiler, scratch);
+  require(native && native->has_value(), "compile loop trace");
+  const std::array code{
+      std::span<const std::byte>{ram}.first(words.size() * 4)};
+  mips::state state{};
+  state.registers[2] = state.registers[4] = 1000;
+  const let full =
+      (**native).code.execute(state.registers, **memory, &state.cop0,
+                              &state.hilo, &state.cop1, code, 1000, 64);
+  require(
+      full && full->blocks == 64 && full->instructions == 160 &&
+          full->next_pc == 0x1000 && state.registers[1] == 32 &&
+          state.registers[3] == 32 && state.registers[5] == 32,
+      "native backedges stop at the caller's device-service block boundary");
+  const let small =
+      (**native).code.execute(state.registers, **memory, &state.cop0,
+                              &state.hilo, &state.cop1, code, 7, 64);
+  require(small && small->instructions == 5 && small->next_pc == 0x1000 &&
+              state.registers[1] == 33 && state.registers[5] == 33,
+          "native traces stop before exceeding an instruction budget");
+  const let zero =
+      (**native).code.execute(state.registers, **memory, &state.cop0,
+                              &state.hilo, &state.cop1, code, 100, 0);
+  require(zero && zero->instructions == 0 && zero->blocks == 0 &&
+              state.registers[1] == 33,
+          "zero native block allowance performs no guest work");
+  const let timer =
+      (**native).code.execute(state.registers, **memory, &state.cop0,
+                              &state.hilo, &state.cop1, code, 1000, 64, 4);
+  require(
+      timer && timer->instructions == 5 && timer->blocks == 2,
+      "native traces stop at the first block boundary after a timer deadline");
+
+  constexpr std::array<mips::instruction_word, 5> fault_words{
+      {{0x24210001}, {0xac610000}, {0x8c850000}, {0x1422fffc}, {0}}};
+  native = jit::compile_native_trace(fault_words, {0x1000}, *compiler, scratch);
+  require(native && native->has_value(), "compile faulting loop trace");
+  state = {};
+  state.registers[3] = 0x3100;
+  state.registers[4] = 0x9000;
+  const let fault =
+      (**native).code.execute(state.registers, **memory, &state.cop0,
+                              &state.hilo, &state.cop1, code, 1000, 64);
+  require(!fault && fault.error().pc == 0x1008 &&
+              fault.error().completed_instructions == 2 &&
+              state.registers[1] == 1 &&
+              (*memory)->load<std::uint32_t>({0x1100}) == 1,
+          "faults retain earlier stores and report the exact completed "
+          "instruction prefix");
+
+  // A store changes the following instruction through a physical alias.
+  constexpr std::array<mips::instruction_word, 4> modified{
+      {{0xac620000}, {0x24040001}, {0x1425fffd}, {0}}};
+  native = jit::compile_native_trace(modified, {0x1000}, *compiler, scratch);
+  require(native && native->has_value(), "compile self-modifying loop trace");
+  state = {};
+  state.registers[3] = 0x3004;
+  state.registers[2] = 0x24040009;
+  const let changed =
+      (**native).code.execute(state.registers, **memory, &state.cop0,
+                              &state.hilo, &state.cop1, code, 1000, 64);
+  require(changed && changed->instructions == 1 && changed->next_pc == 0x1004 &&
+              state.registers[4] == 0 &&
+              (*memory)->fetch<std::uint32_t>({0x1004}) == 0x24040009,
+          "code alias writes exit before executing stale native instructions");
+}
+
 fn writable_code_dispatch() -> void {
   namespace mem = jit::memory;
   std::array<std::byte, mem::page_size> ram{};
@@ -2255,6 +2958,37 @@ fn writable_code_dispatch() -> void {
   require(memory && (*memory)->map_ram({0x1000}, {0}, rwx).has_value() &&
               (*memory)->map_ram({0x3000}, {0}, rwx).has_value(),
           "map writable code aliases");
+  require(
+      (*memory)->store<std::uint32_t>({0x1080}, 0x34040001).has_value() &&
+          (*memory)->store<std::uint32_t>({0x1084}, 0x20850001).has_value() &&
+          (*memory)->store<std::uint32_t>({0x1088}, 0x34060009).has_value() &&
+          (*memory)->store<std::uint32_t>({0x108c}, 0x70000000).has_value(),
+      "install bounded execution program");
+  let bounded = jit::memory_dispatcher::create(**memory);
+  require(bounded.has_value(), "create bounded dispatcher");
+  mips::state precise{};
+  precise.pc = {0x1080};
+  const let warm = (*bounded)->run_slice(precise, 3, 1);
+  require(warm && warm->instructions == 3, "warm a larger cached block");
+  precise = {};
+  precise.pc = {0x1080};
+  const let tiny = (*bounded)->run_slice(precise, 1);
+  require(tiny && tiny->instructions == 1 && precise.pc.value == 0x1084 &&
+              precise.registers[4] == 1,
+          "small budgets execute a prefix rather than stall");
+  precise.pc = {0x1080};
+  require((*memory)->store<std::uint32_t>({0x1084}, 0x20e50001).has_value(),
+          "install overflowing ADDI");
+  precise.registers[7] = 0x7fffffff;
+  bounded = jit::memory_dispatcher::create(**memory);
+  require(bounded.has_value(), "create full block trap dispatcher");
+  const let trapped = (*bounded)->run_slice(precise, 10, 1);
+  require(trapped && trapped->reason == jit::stop_reason::guest_exception &&
+              trapped->instructions == 2 &&
+              precise.pc.value == 0xffffffff80000180ULL &&
+              precise.cop0.registers[9] == 1 && precise.cop0.half_cycle &&
+              precise.registers[6] == 0,
+          "overflow charges the executed prefix including the trapping slot");
   constexpr std::array words{0x34011020u, 0x3c023403u, 0x34420007u, 0xac220000u,
                              0x08000408u, 0u,          0x70000000u, 0u,
                              0x34030001u, 0x70000000u};
@@ -2285,6 +3019,11 @@ fn writable_code_dispatch() -> void {
   const let cached = (*dispatch)->run_slice(state, 1);
   require(cached && cached->compiled == 0 && state.registers[3] == 9,
           "unchanged code reuses its native block");
+  (*memory)->invalidate();
+  state.pc = {0x1020};
+  const let revalidated = (*dispatch)->run_slice(state, 1);
+  require(revalidated && revalidated->compiled == 0 && state.registers[3] == 9,
+          "translation invalidation revalidates backing without recompilation");
   constexpr std::array maintenance{0xbd210001u, 0xbd200000u, 0x08000408u, 0u};
   for (std::size_t i = 0; i < maintenance.size(); i++)
     require((*memory)
@@ -2825,6 +3564,7 @@ fn main(int argc, char **argv) -> int {
   immediate_xor();
   cop0_writes();
   cop0_full_width();
+  performance_control();
   byte_stores();
   halfword_accesses();
   signed_byte_loads();
@@ -2852,6 +3592,15 @@ fn main(int argc, char **argv) -> int {
   checked_addition();
   exception_return();
   syscall_exceptions();
+  breakpoint_exceptions();
+  conflicting_code_blocks();
+  trace_branch_limits();
+  host_code_mutations();
+  observed_partial_merge();
+  cop0_prefix_clock();
+  trace_exception_positions();
+  memory_effect_clock();
+  bounded_native_traces();
   writable_code_dispatch();
   cross_page_code_validation();
   handoff_boundary();
