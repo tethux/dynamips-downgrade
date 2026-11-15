@@ -11,6 +11,7 @@ module;
 #include <memory>
 #include <new>
 #include <span>
+#include <utility>
 #include <vector>
 
 #include <dynamips/macros.h>
@@ -45,7 +46,11 @@ enum class fault_reason : std::uint8_t {
   unmapped,
   permission,
   unsupported_size,
-  bus
+  bus,
+  tlb_miss,
+  tlb_invalid,
+  tlb_modified,
+  address_error
 };
 
 struct fault {
@@ -112,6 +117,10 @@ using translation_callback = auto (*)(void *, virtual_address, access_kind,
                                       access_size) noexcept
     -> std::expected<translated_page, fault>;
 
+// Guest-state-preserving callbacks may update host diagnostics only. Guest
+// RAM, GPRs and CP0 state remain unchanged, including when translation fails.
+enum class translation_effect { opaque, guest_state_preserving };
+
 inline constexpr std::size_t page_size = 4096;
 
 struct cache_entry {
@@ -126,22 +135,146 @@ static_assert(sizeof(device_access) == 16);
 // RAM occupies physical [0, size). One execution owner; borrowed RAM and
 // devices outlive mappings. Change mappings or device callbacks only while
 // stopped.
+struct backing_stamp {
+  std::span<const std::uint64_t> versions{};
+
+  [[nodiscard]] inline fn value() const noexcept -> std::uint64_t {
+    if (versions.size() == 1)
+      return versions.front();
+    std::uint64_t result = 0;
+    for (const let version : versions)
+      result += version;
+    return result;
+  }
+};
+
+// Stable scopes keep code descriptors and backing addresses fixed until exit.
+enum class range_stability : std::uint8_t { dynamic, stable };
+
+struct write_monitor {
+  std::span<const std::span<const std::byte>> ranges{};
+  bool modified = false;
+  void *context = nullptr;
+  void (*before_external)(void *) noexcept = nullptr;
+  // Borrowed CPU-state bytes outlive the monitoring scope.
+  std::span<const std::byte> architectural_state{};
+  range_stability stability = range_stability::dynamic;
+};
+
+// While execution caches are active, tracked owners route every RAM write
+// through this space and keep executable non-RAM backing immutable. Borrowed
+// backing is rechecked between slices.
+enum class backing_policy { borrowed, tracked };
+
 class address_space {
 public:
+  // Nested scopes observe only the innermost execution. Hooks may account
+  // CPU time; they must not access memory or edit mappings recursively.
+  class monitoring_scope {
+    address_space &owner_;
+    write_monitor *previous_;
+    std::uintptr_t previous_begin_, previous_end_;
+
+  public:
+    inline monitoring_scope(address_space &owner,
+                            write_monitor *monitor) noexcept
+        : owner_(owner), previous_(std::exchange(owner.monitor_, monitor)),
+          previous_begin_(owner.monitor_begin_),
+          previous_end_(owner.monitor_end_) {
+      owner.monitor_begin_ = UINTPTR_MAX;
+      owner.monitor_end_ = 0;
+      if (monitor && monitor->stability == range_stability::dynamic) {
+        owner.monitor_begin_ = 0;
+        owner.monitor_end_ = UINTPTR_MAX;
+      }
+      if (monitor && monitor->stability == range_stability::stable)
+        for (const let range : monitor->ranges) {
+          if (range.empty())
+            continue;
+          const let begin = reinterpret_cast<std::uintptr_t>(range.data());
+          if (range.size() > UINTPTR_MAX - begin) {
+            owner.monitor_begin_ = 0;
+            owner.monitor_end_ = UINTPTR_MAX;
+            break;
+          }
+          owner.monitor_begin_ = std::min(owner.monitor_begin_, begin);
+          owner.monitor_end_ =
+              std::max(owner.monitor_end_, begin + range.size());
+        }
+    }
+
+    monitoring_scope(const monitoring_scope &) = delete;
+    fn operator=(const monitoring_scope &) -> monitoring_scope & = delete;
+
+    inline ~monitoring_scope() {
+      owner_.monitor_ = previous_;
+      owner_.monitor_begin_ = previous_begin_;
+      owner_.monitor_end_ = previous_end_;
+    }
+  };
+
+  [[nodiscard]] inline fn monitor_writes(write_monitor *monitor) noexcept
+      -> monitoring_scope {
+    return monitoring_scope{*this, monitor};
+  }
+
   static constexpr std::size_t first_level_entries = 256;
   static constexpr std::size_t second_level_entries = 4096;
   address_space(const address_space &) = delete;
   fn operator=(const address_space &) -> address_space & = delete;
 
-  fn mapping_generation() const noexcept -> std::uint64_t {
+  [[nodiscard]] inline fn policy() const noexcept -> backing_policy {
+    return backing_;
+  }
+
+  [[nodiscard]] inline fn requires_slice_validation() const noexcept -> bool {
+    return backing_ != backing_policy::tracked;
+  }
+
+  inline fn mapping_generation() const noexcept -> std::uint64_t {
     return generation_;
   }
 
+  [[nodiscard]] inline fn external_generation() const noexcept
+      -> std::uint64_t {
+    return external_generation_;
+  }
+
+  [[nodiscard]] inline fn read_cache() const noexcept -> const cache_entry * {
+    return first_[static_cast<std::size_t>(access_kind::read)].data();
+  }
+
+  // Borrowed counters remain stable for the address space lifetime.
+  [[nodiscard]] inline fn
+  stamp(std::span<const std::byte> range) const noexcept -> backing_stamp {
+    if (range.empty() || ram_.empty())
+      return {};
+    const let begin = std::max(reinterpret_cast<std::uintptr_t>(range.data()),
+                               reinterpret_cast<std::uintptr_t>(ram_.data()));
+    const let end =
+        std::min(reinterpret_cast<std::uintptr_t>(range.data() + range.size()),
+                 reinterpret_cast<std::uintptr_t>(ram_.data() + ram_.size()));
+    if (begin >= end)
+      return {};
+    const let base = reinterpret_cast<std::uintptr_t>(ram_.data());
+    const let first = (begin - base) / page_size;
+    const let last = (end - 1 - base) / page_size;
+    return {std::span{write_versions_}.subspan(first, last - first + 1)};
+  }
+
+  // Speculative code discovery must never invoke opaque guest-state effects.
+  [[nodiscard]] inline fn may_speculate_translation() const noexcept -> bool {
+    return !translate_ ||
+           translation_effect_ == translation_effect::guest_state_preserving;
+  }
+
   // The translation owner and returned backing outlive this address space.
-  fn set_translation(void *context, translation_callback callback) noexcept
-      -> void {
+  fn set_translation(
+      void *context, translation_callback callback,
+      translation_effect effect = translation_effect::opaque) noexcept -> void {
     translation_context_ = context;
     translate_ = callback;
+    translation_effect_ = effect;
     invalidate();
   }
 
@@ -196,14 +329,18 @@ public:
     return update_result{updates.size(), batch.count, batch.full};
   }
 
-  [[nodiscard]] static fn create(std::span<std::byte> ram,
-                                  std::size_t mapping_capacity) noexcept
+  [[nodiscard]] static fn
+  create(std::span<std::byte> ram, std::size_t mapping_capacity,
+         backing_policy backing = backing_policy::borrowed) noexcept
       -> std::expected<std::unique_ptr<address_space>, mapping_error> {
     try {
-      let result = std::unique_ptr<address_space>{new address_space{ram}};
+      let result =
+          std::unique_ptr<address_space>{new address_space{ram, backing}};
       if (mapping_capacity > result->mappings_.max_size())
         return std::unexpected(mapping_error::capacity_exhausted);
       result->mappings_.reserve(mapping_capacity);
+      result->write_versions_.resize(ram.size() / page_size +
+                                     (ram.size() % page_size != 0));
       result->mapping_limit_ = mapping_capacity;
       return result;
     } catch (const std::bad_alloc &) {
@@ -287,6 +424,7 @@ public:
   }
 
   fn invalidate() noexcept -> void {
+    external_effect();
     clear_reservation();
     for (let &table : first_)
       std::ranges::fill(table, cache_entry{});
@@ -357,12 +495,13 @@ public:
     const let entry = lookup<access_kind::write>(address);
     if (!entry)
       return store_slow<T, Order>(address, value);
-    encode<T, Order>(entry->host_page + (address.value & (page_size - 1)),
-                     value);
+    let *host = entry->host_page + (address.value & (page_size - 1));
+    encode<T, Order>(host, value);
+    written(host, sizeof(T));
     return {};
   }
 
-  fn clear_reservation() noexcept -> void {
+  inline fn clear_reservation() noexcept -> void {
     if (reservation_.host)
       reservation_.host = nullptr;
   }
@@ -394,7 +533,27 @@ public:
         linked.size != static_cast<access_size>(sizeof(T)))
       return false;
     encode<T, Order>(*host, value);
+    written(*host, sizeof(T));
     return true;
+  }
+
+  // DMA/debugger/restore writes share CPU coherency and reservation tracking.
+  [[nodiscard]] fn write_physical(physical_address address,
+                                   std::span<const std::byte> bytes) noexcept
+      -> std::expected<void, fault> {
+    if (address.value > ram_.size() ||
+        bytes.size() > ram_.size() - address.value)
+      return std::unexpected(fault{{address.value},
+                                   fault_reason::bus,
+                                   access_kind::write,
+                                   access_size::byte});
+    if (bytes.empty())
+      return {};
+    clear_reservation();
+    let *host = ram_.data() + address.value;
+    std::memmove(host, bytes.data(), bytes.size());
+    written(host, bytes.size());
+    return {};
   }
 
   // A single-page byte write. Device partial writes need an explicit bus
@@ -409,8 +568,9 @@ public:
       return std::unexpected(fault{address, fault_reason::unsupported_size,
                                    access_kind::write, access_size::byte});
     if (const let cached = lookup<access_kind::write>(address)) {
-      std::memmove(cached->host_page + (address.value & (page_size - 1)),
-                   bytes.data(), bytes.size());
+      let *host = cached->host_page + (address.value & (page_size - 1));
+      std::memmove(host, bytes.data(), bytes.size());
+      written(host, bytes.size());
       return {};
     }
     const let target = resolve(address, access_kind::write, access_size::byte);
@@ -420,6 +580,7 @@ public:
       return std::unexpected(fault{address, fault_reason::unsupported_size,
                                    access_kind::write, access_size::byte});
     std::memmove(target->host, bytes.data(), bytes.size());
+    written(target->host, bytes.size());
     return {};
   }
 
@@ -485,8 +646,23 @@ private:
     access_size size = access_size::word;
   };
 
+  write_monitor *monitor_ = nullptr;
+  std::uintptr_t monitor_begin_ = 0, monitor_end_ = UINTPTR_MAX;
   reservation reservation_;
   std::span<std::byte> ram_;
+  const backing_policy backing_;
+  std::vector<std::uint64_t> write_versions_;
+  std::uint64_t external_generation_ = 0;
+
+  struct backing_hint {
+    std::uint64_t tag = 0;
+    std::uintptr_t host = 0;
+    std::uintptr_t target = 0;
+    bool read_only = false;
+  };
+
+  std::array<backing_hint, 1024> backing_hints_{};
+  std::array<std::uint64_t, 64> seen_backing_{};
   std::vector<mapping> mappings_;
   std::size_t mapping_limit_ = 0;
   std::uint64_t generation_ = 0;
@@ -494,8 +670,61 @@ private:
   bool sealed_code_ = false;
   void *translation_context_ = nullptr;
   translation_callback translate_ = nullptr;
+  translation_effect translation_effect_ = translation_effect::opaque;
 
-  explicit address_space(std::span<std::byte> ram) noexcept : ram_(ram) {}
+  explicit address_space(std::span<std::byte> ram,
+                         backing_policy backing) noexcept
+      : ram_(ram), backing_(backing) {}
+
+  inline fn external_effect() noexcept -> void {
+    external_generation_++;
+    if (monitor_) {
+      monitor_->modified = true;
+      if (monitor_->before_external)
+        monitor_->before_external(monitor_->context);
+    }
+  }
+
+  inline fn written(const std::byte *host, std::size_t size) noexcept -> void {
+    const let begin = reinterpret_cast<std::uintptr_t>(host);
+    const let end = reinterpret_cast<std::uintptr_t>(host + size);
+    const let base = reinterpret_cast<std::uintptr_t>(ram_.data());
+    const let limit =
+        reinterpret_cast<std::uintptr_t>(ram_.data() + ram_.size());
+    const let offset = begin - base;
+    if (size && offset < ram_.size() && size <= ram_.size() - offset &&
+        size <= page_size - (offset & (page_size - 1))) {
+      write_versions_[offset / page_size]++;
+    } else {
+      if (begin < base || end > limit)
+        external_generation_++;
+      if (std::max(begin, base) < std::min(end, limit))
+        for (let page = (std::max(begin, base) - base) / page_size;
+             page <= (std::min(end, limit) - 1 - base) / page_size; page++)
+          write_versions_[page]++;
+    }
+    if (!monitor_ || monitor_->modified)
+      return;
+    const let state = monitor_->architectural_state;
+    if (!state.empty()) {
+      const let state_begin = reinterpret_cast<std::uintptr_t>(state.data());
+      if (state.size() > UINTPTR_MAX - state_begin ||
+          (begin < state_begin + state.size() && state_begin < end)) {
+        monitor_->modified = true;
+        return;
+      }
+    }
+    if (monitor_->stability == range_stability::stable &&
+        (end <= monitor_begin_ || begin >= monitor_end_))
+      return;
+    for (const let range : monitor_->ranges) {
+      const let code = reinterpret_cast<std::uintptr_t>(range.data());
+      if (begin < code + range.size() && code < begin + size) {
+        monitor_->modified = true;
+        return;
+      }
+    }
+  }
 
   static constexpr fn valid(permission permissions) noexcept -> bool {
     const let bits = static_cast<unsigned>(permissions);
@@ -551,6 +780,7 @@ private:
   }
 
   fn invalidate_page(virtual_address address) noexcept -> void {
+    external_effect();
     const let page = address.value / page_size;
     const let tag = address.value | 1;
     for (let &table : first_)
@@ -570,7 +800,16 @@ private:
     if (value.host && !compatible_code(value.address, value.physical,
                                        value.permissions, sealed_code_))
       return std::unexpected(mapping_error::physical_conflict);
-    if (value.physical.value >= ram_.size())
+    const let page = value.physical.value / page_size;
+    const let seen_index = page & 4095;
+    const let bit = std::uint64_t{1} << (seen_index % 64);
+    let &hint = backing_hints_[page & (backing_hints_.size() - 1)];
+    const let host = reinterpret_cast<std::uintptr_t>(value.host);
+    const let target = reinterpret_cast<std::uintptr_t>(value.target);
+    if (value.physical.value >= ram_.size() &&
+        (seen_backing_[seen_index / 64] & bit) &&
+        !(hint.tag == (value.physical.value | 1) && hint.host == host &&
+          hint.target == target && hint.read_only == value.read_only))
       for (const let &entry : mappings_)
         if (entry.address.value != value.address.value &&
             entry.physical.value == value.physical.value &&
@@ -585,6 +824,11 @@ private:
       if (mappings_.size() == mapping_limit_)
         return std::unexpected(mapping_error::capacity_exhausted);
       mappings_.insert(found, value);
+    }
+    if (value.physical.value >= ram_.size()) {
+      // Bits never clear: unset proves absence; hint misses use the exact scan.
+      seen_backing_[seen_index / 64] |= bit;
+      hint = {value.physical.value | 1, host, target, value.read_only};
     }
     invalidate(value.address);
     return {};
@@ -615,6 +859,8 @@ private:
       if (!translate_)
         return std::unexpected(
             fault{address, fault_reason::unmapped, access, size});
+      if (translation_effect_ != translation_effect::guest_state_preserving)
+        external_effect();
       const let translated =
           translate_(translation_context_, address, access, size);
       if (!translated)
@@ -701,6 +947,7 @@ private:
       if (!resolved->target->write)
         return std::unexpected(fault{address, fault_reason::unsupported_size,
                                      access_kind::write, size});
+      external_effect();
       let result = resolved->target->write(
           resolved->target->context, {resolved->physical, Order, size}, value);
       if (!result)
@@ -709,6 +956,7 @@ private:
       return {};
     }
     encode<T, Order>(resolved->host, value);
+    written(resolved->host, sizeof(T));
     return {};
   }
 
@@ -741,6 +989,7 @@ private:
       if (!resolved->target->read)
         return std::unexpected(
             fault{address, fault_reason::unsupported_size, Access, size});
+      external_effect();
       let result = resolved->target->read(resolved->target->context,
                                            {resolved->physical, Order, size});
       if (!result)

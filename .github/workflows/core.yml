@@ -1,0 +1,128 @@
+name: Native rewrite
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  native:
+    name: Native (${{ matrix.mode }})
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [debug, release]
+    env:
+      DYNAMIPS_BUILD_JOBS: 4
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - name: Install native dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-19 clang-tools-19 g++-14 libelf-dev libpcap-dev libnsl-dev pkg-config
+      - name: Select Clang 19
+        run: |
+          mkdir -p "$RUNNER_TEMP/clang-bin"
+          for tool in clang clang++ clang-scan-deps; do
+            ln -s "/usr/bin/$tool-19" "$RUNNER_TEMP/clang-bin/$tool"
+          done
+          echo "$RUNNER_TEMP/clang-bin" >> "$GITHUB_PATH"
+      - uses: jdx/mise-action@v5.2.2
+        with:
+          install_args: github:xmake-io/xmake
+      - name: Check the new CPU, devices, machine and CLI
+        run: bash tools/ci/native-core.sh check '${{ matrix.mode }}'
+      - name: Preserve failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: native-${{ matrix.mode }}-failure
+          path: |
+            build/ci-logs/
+            build/.tests/
+            .xmake/linux/x86_64/xmake.conf
+          if-no-files-found: ignore
+          retention-days: 7
+
+  sanitizers:
+    name: Native ASan and UBSan
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 30
+    env:
+      DYNAMIPS_BUILD_JOBS: 4
+      ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+      UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - name: Install native dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-19 clang-tools-19 g++-14 libelf-dev libpcap-dev libnsl-dev pkg-config
+      - name: Select Clang 19
+        run: |
+          mkdir -p "$RUNNER_TEMP/clang-bin"
+          for tool in clang clang++ clang-scan-deps; do
+            ln -s "/usr/bin/$tool-19" "$RUNNER_TEMP/clang-bin/$tool"
+          done
+          echo "$RUNNER_TEMP/clang-bin" >> "$GITHUB_PATH"
+      - uses: jdx/mise-action@v5.2.2
+        with:
+          install_args: github:xmake-io/xmake
+      - name: Check CPU and device lifetimes under sanitizers
+        run: bash tools/ci/native-core.sh sanitize
+      - name: Preserve failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: native-sanitizer-failure
+          path: |
+            build/ci-logs/
+            build/.tests/
+            .xmake/linux/x86_64/xmake.conf
+          if-no-files-found: ignore
+          retention-days: 7
+
+  clangd:
+    name: Native module diagnostics
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 40
+    env:
+      DYNAMIPS_BUILD_JOBS: 4
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - name: Install native analysis dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-19 clang-tools-19 clangd-19 g++-14 libelf-dev libpcap-dev libnsl-dev pkg-config
+      - name: Select Clang 19 and clangd
+        run: |
+          mkdir -p "$RUNNER_TEMP/clang-bin"
+          for tool in clang clang++ clang-scan-deps clangd; do
+            ln -s "/usr/bin/$tool-19" "$RUNNER_TEMP/clang-bin/$tool"
+          done
+          echo "$RUNNER_TEMP/clang-bin" >> "$GITHUB_PATH"
+      - uses: jdx/mise-action@v5.2.2
+        with:
+          install_args: github:xmake-io/xmake
+      - name: Generate compilation database and check native modules
+        run: bash tools/ci/native-core.sh clangd
+      - name: Preserve failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: native-analysis-failure
+          path: |
+            build/ci-logs/
+            compile_commands.json
+            .xmake/linux/x86_64/xmake.conf
+          if-no-files-found: ignore
+          retention-days: 7
